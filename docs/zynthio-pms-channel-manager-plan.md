@@ -195,7 +195,7 @@ Fit it to the existing Zynthio platform rather than build a parallel stack. Spec
 - **Pricing service:** rules engine evaluated nightly and on triggers; forecasting jobs run in a worker with model artefacts per property; recommendations stored with explanations.
 - **Mobile:** housekeeping module in the existing native app, offline queue with conflict resolution; a lightweight web fallback.
 - **Reporting:** nightly snapshots into a reporting schema or warehouse; materialised KPIs for dashboards.
-- **Infrastructure:** UK-hosted (data residency matters to universities), managed Postgres with point-in-time recovery, object storage for documents and photos, queue (Redis or SQS-class), scheduled jobs, observability (logs, traces, uptime), daily encrypted backups off-site (the existing Drive backup routine shows this habit already exists), 99.9 percent target with a published status page.
+- **Infrastructure:** run on the existing Zynthio hosting and SendGrid email, UK-hosted (data residency matters to universities), managed Postgres with point-in-time recovery, object storage for documents and photos, queue (Redis or SQS-class), scheduled jobs, observability (logs, traces, uptime), daily encrypted backups off-site (the existing Drive backup routine shows this habit already exists), 99.9 percent target with a published status page.
 
 ---
 
@@ -256,10 +256,11 @@ Cash outlay to launch the channel manager is close to zero: the Channex sandbox 
 | Channex platform fee | 105 (130 USD) | 105 |
 | Channex per hotel property (7 USD, 6 USD at 500 plus) | 280 | 1,700 |
 | Rate shopping data feed (per property per month, 15 to 40) | 750 to 2,000 | 4,500 to 12,000 |
-| Hosting, database, storage, queues, monitoring | 600 to 1,200 | 2,000 to 4,000 |
-| Email and SMS (transactional) | 150 to 300 | 800 to 1,500 |
-| App store fees, mapping, misc SaaS | 150 | 300 |
-| **Total third-party cost** | **2,000 to 4,000** | **9,500 to 19,500** |
+| Hosting, database, storage, queues, monitoring | Existing Zynthio infrastructure; incremental 0 to 300 | Incremental 500 to 1,500 for database and storage growth |
+| Transactional email | Existing SendGrid account; 0 to 50 incremental | 100 to 300 if volume outgrows the current plan |
+| SMS and WhatsApp (guest messaging) | 50 to 150 | 400 to 900 |
+| App store fees, misc SaaS | 0 (existing developer accounts) | 100 |
+| **Total third-party cost** | **1,200 to 3,000** | **7,500 to 17,000** |
 
 Support and engineering time is founder time at launch; budget a first support hire at around 40 properties and a second engineer at around 100.
 
@@ -281,7 +282,7 @@ Proposed per-property monthly pricing (per room, with floors):
 
 A 20-room inn on the bundle pays about 2,400 a year, under half the cost of a typical PMS, channel manager and RMS stack, while Zynthio's variable cost for that property (aggregator and rate feed) is roughly 25 to 45 a month. Gross margin on software is above 75 percent before support.
 
-With no salaried build cost, the modules are cash-positive from the first few properties: a 20-room bundle at 199 a month carries roughly 25 to 45 of variable third-party cost. Hosting and compliance overheads are covered by about 15 to 20 properties. The WithUS deal alone would cover two hotels plus the venue; the university's 18 restaurants are already EPOS revenue.
+With no salaried build cost, the modules are cash-positive from the first few properties: a 20-room bundle at 199 a month carries roughly 25 to 45 of variable third-party cost. Hosting and email already exist, so the only fixed overhead is the Channex platform fee and compliance; three to five properties cover it. The WithUS deal alone would cover two hotels plus the venue; the university's 18 restaurants are already EPOS revenue.
 
 ---
 

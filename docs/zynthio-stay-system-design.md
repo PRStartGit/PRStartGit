@@ -949,3 +949,70 @@ A custom report builder lets a manager pick a dataset (reservations, postings, p
 | Data export and portability | Full export per property for audits or exit |
 | Offline mode for front desk | Read-only arrivals, in-house and fire sheet cached on the desk device if the connection drops |
 | Printer and hardware management | Receipt and document printers, key encoders and terminals per device, through the existing Jarltech hardware range |
+
+---
+
+## 12. Market comparison and remaining gaps
+
+Vendors reviewed (from their own sites and review listings, November 2026): Mews, Cloudbeds, Guestline Rezlynx (Access Group), eviivo Suite, RoomRaccoon, Stayntouch, Oracle OPERA Cloud, Apaleo, Little Hotelier (SiteMinder), Clock PMS, Chekin. Vendor claims are marketing and not independently verified.
+
+### 12.1 What the market now treats as baseline
+
+| Capability | Who leads on it | Zynthio Stay status |
+|---|---|---|
+| Embedded payments with tokenisation, pay-by-link, wallets, chargeback tooling | Mews, Cloudbeds, RoomRaccoon, Guestline GuestPay | Covered via Dojo (sections 2 and 8.15) |
+| Online check-in with ID capture and e-signature, kiosk mode | Mews Kiosk, Cloudbeds, Stayntouch, Chekin | Covered |
+| Unified guest inbox across OTA messaging, email, SMS and WhatsApp | eviivo, Cloudbeds (Whistle), Mews | **Gap, added below** |
+| AI assistant for guest questions with human escalation | eviivo, Cloudbeds, Mews | **Gap, added below** |
+| Bookable non-room spaces and services by the hour (parking, coworking, bikes, meeting rooms) | Mews Spaces | Partly covered (meeting rooms, parking); **generalised below** |
+| Upsell menus pre-arrival and in stay | RoomRaccoon RaccoonUpsell, Mews | Covered |
+| Pricing rules on occupancy, restrictions and comp set | Cloudbeds, RoomRaccoon RaccoonRev, Mews | Covered and deeper (section 2.4 of the plan) |
+| Guest profile merge, de-duplication and segmentation for marketing | Cloudbeds, Mews | Partly covered; **CRM campaigns added below** |
+| Open API, webhooks and an app marketplace | Mews, Apaleo, Cloudbeds | API and webhooks covered; **developer portal added below** |
+| Multi-property central management | Mews, Cloudbeds, OPERA Cloud, Guestline | Covered in section 11 |
+| Conference and banqueting | Guestline, OPERA Cloud | Covered and deeper (section 9) |
+| Two-way EPOS with room posting | Guestline EPoS, Mews POS | Covered, and Zynthio owns the EPOS |
+| Owner and trust accounting for managed units | eviivo Owner Manager | **Gap, optional module below** |
+| Continuous audit without a night audit step | Mews, Apaleo | **Design choice added below** |
+| Hostel bed-level inventory | Cloudbeds, Mews | Covered via per-bed room type category |
+| Labour and rota integrated with the PMS | None of the above | Zynthio's differentiator |
+
+### 12.2 Gaps found and decisions
+
+| Gap | What to add | Decision |
+|---|---|---|
+| Unified guest inbox | One inbox per property pulling Booking.com and Expedia messaging APIs (via the aggregator), Airbnb threads, email, SMS, WhatsApp Business and the guest web app; conversation linked to the reservation; templates, assignment to staff, SLA timers, read receipts; replies go back on the channel the guest used | Add to Guest Journey, phase 3 |
+| AI guest assistant | Answers common questions (check-in time, parking, breakfast, directions, Wi-Fi) from the property's knowledge base, in the guest's language, on the website, WhatsApp and the guest app; drafts replies for staff in the inbox; hands over to a human on uncertainty, complaints or payment topics; every answer logged; opt-in per property | Add, phase 5; built on the Claude API with the property knowledge base and strict escalation rules |
+| Bookable resources beyond rooms | Generalise the inventory engine to any resource with a calendar: meeting rooms, parking bays, EV chargers, coworking desks, bikes, spa treatment slots with therapist and room, tennis court, kayak; hourly, daily or slot pricing; sold on booking engine, guest app and desk; posts to folio or standalone sale | Add as "Resources" in Inventory, phase 4 |
+| Spa and activity appointments | Treatment menu, duration, therapist skills and rota, treatment rooms, prep and cleanup buffers, deposits, in-stay booking from the guest app, commission to therapists | Phase 6 via Resources |
+| CRM and marketing campaigns | Segments built from profile and stay data (lapsed guests, weekend leisure, corporate bookers, high spenders), campaign builder for email and SMS with consent enforcement, win-back and anniversary automations, attribution to bookings; integration with Klaviyo or Mailchimp for hotels that already use them | Add to Guest Journey, phase 5, using SendGrid |
+| Abandoned booking recovery | Capture email at step one of the booking engine, send a recovery message with the held price, track conversion | Add to Booking Engine, phase 3 |
+| Booking engine analytics and conversion tracking | GA4 and Meta pixel events, funnel report, metasearch cost per booking, A/B test of rate display | Add, phase 3 |
+| Paid metasearch management | Google Hotel Ads commission or CPC campaigns, Trivago, TripAdvisor bidding with budget caps and ROI reporting | Phase 7 |
+| Guest self-service modification | Change dates, room type and occupancy, add nights or extras, within policy and availability, on the guest portal; re-prices and collects difference | Add, phase 3 |
+| Digital compendium | QR in room opens the property guide: Wi-Fi, menus, local recommendations, house rules, services to order; replaces printed folders | Add to Guest app, phase 4 |
+| In-stay satisfaction pulse | One-question survey the morning after arrival so problems are fixed before checkout; routes to duty manager | Add, phase 4 |
+| Digital tipping | QR or in-app tips to housekeeping and staff, routed to tronc in the rota module | Add, phase 4 |
+| Loyalty programme | Points or tier scheme, member rates, recognition at check-in, redemption on folio; cross-property for groups | Phase 6 |
+| B2B portals | Travel agent portal with net rates and allotments; corporate booking portal with negotiated rates, traveller profiles, PO and cost centre capture, consolidated monthly invoice | Phase 6 |
+| Group booking landing page | A per-event page where attendees book into the block at the negotiated rate, with pickup visible to the organiser | Add to Events, phase 5 |
+| Owner and trust accounting | For serviced apartments and let rooms owned by third parties: owner statements, management fee rules, trust ledger, owner portal and payouts | Optional module, only if a customer needs it |
+| Continuous audit | Allow properties to opt out of a manual night audit: business date rolls automatically, postings are continuous, the audit pack is still generated and exceptions are queued for the morning | Design both from the start; default to automatic roll with an optional manual gate |
+| Developer portal and marketplace | Public API docs, sandbox tenants, API keys and scopes, webhook catalogue with retries, partner listing in the integrations hub | Phase 6 |
+| Multi-currency display | Booking engine shows prices in the guest's currency with a disclosed rate; settlement stays in GBP | Add, phase 3 |
+| Long-stay and serviced apartment billing | Weekly or monthly periodic invoicing, utilities and cleaning schedules, 28-day VAT rule (already covered), tenancy-style documents | Phase 6 |
+| Energy and IoT | Occupancy status to heating and lighting controls, door sensors feeding housekeeping status | Phase 7, via integrations hub |
+| BI connector | Scheduled export to a warehouse or Power BI and Looker Studio connectors for groups that want their own dashboards | Phase 6 |
+| Accessibility | WCAG 2.2 AA on booking engine, guest app and staff web; large-text mode on the housekeeping app | Build in from phase 1 |
+| Welsh and other UK languages | Booking engine and guest documents in Welsh for Welsh properties; Gaelic optional | Phase 4, templates only |
+| Procurement for F&B | Already in scope for the EPOS stock module; link supplier invoices to event profitability | Confirm against the existing EPOS |
+| Health, safety and compliance logs | Fire alarm tests, legionella, food safety checks: already part of Zynthio digital compliance; add hotel-specific templates (fire sheet printed, pool checks, lift inspections) | Templates only |
+
+### 12.3 Where Zynthio Stay should deliberately be different
+
+- **Labour inside the PMS.** No competitor shows rota cost against rooms and F&B revenue by hour, or builds staffing suggestions from arrivals, departures, covers and events. This is the headline.
+- **One ledger across rooms, F&B, events and retail**, because Zynthio owns the EPOS. Competitors integrate with third-party tills and lose fidelity.
+- **Housekeeping, linen and compliance in the staff app staff already clock into**, instead of a separate app.
+- **Pricing that explains itself.** Every automated price change carries plain-English reasons; autopilot is opt-in behind guardrails.
+- **Priced for pubs with rooms and small independents** at a per-room rate with low minimums, where competitors' minimums start at a few hundred pounds a month once payments and channel manager are added.
+- **UK first.** VAT 28-day rule, visitor levies, Immigration (Hotel Records) Order registration fields, tronc, Cyber Essentials Plus for public-sector buyers, Dojo rates.

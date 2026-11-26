@@ -330,3 +330,243 @@ Nightly and on triggers (pickup threshold, comp set move, event added): gather o
 | Role courses and certification | Quizzes per role with completion recorded on the employee profile in Zynthio HR |
 | Onboarding playbook | Structured 30-day migration and go-live checklist per property |
 | Support tickets | Existing escalation flow from staff to organisation admin to Zynthio, with consented impersonation for support |
+
+---
+
+## 8. Configuration specification
+
+This section defines every setting the admin console exposes, what type it is, its default, and the rule it drives. It is the contract between the admin UI, the domain model and the channel adapters.
+
+### 8.1 Property settings
+
+| Setting | Type | Default | Rule or behaviour |
+|---|---|---|---|
+| Legal name, trading name | text | from site | Appears on invoices and registration cards |
+| Address, phone, email, website | text | from site | Pushed to channels and shown on confirmations |
+| Time zone | IANA zone | Europe/London | All business dates, audit time and message offsets use it |
+| Currency | ISO 4217 | GBP | Single property currency; channel adapters convert where the channel demands |
+| Check-in time, check-out time | time | 15:00, 11:00 | Drives early and late fee thresholds, housekeeping deadlines, key activation |
+| Night audit time | time | 04:00 | When the business date rolls; must be after check-out and before check-in |
+| Business date mode | enum | rolls at audit | Alternative: rolls at midnight |
+| Star rating, property type | enum | none | Required by Booking.com and Expedia content |
+| Default child age brackets | list of ranges | infant 0 to 2, child 3 to 12 | Property-wide definition used by room types and rate plans unless overridden |
+| Count infants toward occupancy | boolean | false | Infants in cots do not consume a bed space when false |
+| Max cots per room default | integer | 1 | Overridable per room type and room |
+| Overbooking allowance | integer per room type | 0 | Extra rooms availability may show above physical count; applied in availability engine |
+| Tape chart colours | map status to colour | preset | Front desk only |
+| Invoice numbering | prefix plus sequence | ZS-{YYYY}-{000001} | Sequential per property, never reused, credit notes have their own sequence |
+| Registration card requirements | checklist | name, nationality, passport for non-UK | Which fields online check-in and the desk must capture |
+| Data retention | days per data class | 7 years finance, 3 years guest | Erasure jobs respect it |
+| Languages | list | en-GB | Templates and booking engine languages |
+| Brand | logo, colours, fonts, email sender | Zynthio defaults | Booking engine, guest app, documents and emails |
+
+### 8.2 Room type settings
+
+A room type is the unit sold on every channel. Everything a guest sees before arrival comes from here.
+
+| Setting | Type | Default | Rule or behaviour |
+|---|---|---|---|
+| Code | short text, unique per property | required | Used in channel mapping and reports |
+| Name | text per language | required | Shown on booking engine and pushed to channels |
+| Short and long description | rich text per language | empty | Pushed to channels that accept content |
+| Photos | ordered list with captions | empty | First photo is hero; minimum sizes enforced for OTA content rules |
+| Category | enum (room, suite, apartment, dormitory bed, meeting room, pitch, parking) | room | Dormitory beds sell per bed; meeting rooms and pitches reuse the same inventory engine |
+| Size | square metres | empty | Content only |
+| Floor range, view, accessibility, smoking | attributes | empty | Filterable in auto-assign and booking engine |
+| Bed configuration | list of (bed type, count), with alternatives | required | Alternatives let one room type offer twin or double; selected at booking and shown to housekeeping |
+| Standard occupancy | integer | 2 | The occupancy the base rate is priced for |
+| Max adults | integer | 2 | Hard cap for adults |
+| Max children | integer | 0 | Hard cap for children, by property child brackets |
+| Max total persons | integer | max adults | Overall cap; adults plus children cannot exceed it, infants excluded unless the property counts them |
+| Min occupancy | integer | 1 | Prevents a family suite being sold to one person if the hotel wants that |
+| Extra bed allowed, extra bed count | boolean, integer | false, 0 | Extra beds extend max total up to the physical limit and trigger a housekeeping task |
+| Cot allowed, max cots | boolean, integer | true, 1 | Cots do not consume a bed space; create a housekeeping task |
+| Child age brackets override | list of ranges | inherit | Lets a family room define its own brackets |
+| Occupancy pricing mode | enum (per room, per occupancy, per person) | per occupancy | Per room: one price regardless of guests. Per occupancy: price per number of adults with child supplements. Per person: price times persons, used for hostels and dormitories |
+| Amenities | multi-select from the master list | empty | Mapped to channel amenity codes |
+| Virtual room type | boolean plus component list | false | Sells a combination of physical room types (two connecting rooms as a family suite); availability is the minimum of components and selling one consumes all components |
+| Shared inventory group | optional group id | none | Room types that draw from the same physical pool (same room sold as double or twin); selling one reduces the other |
+| Default housekeeping credits | minutes per task type | 30 departure, 15 stay-over | Used by the assignment engine |
+| Linen par per room | list of (linen item, quantity) | empty | Drives counts and laundry forecasting |
+| Channel defaults | boolean per channel | all on | Whether new rate plans on this room type are offered to each channel |
+| Sort order, active, sellable online | integer, boolean, boolean | end, true, true | Inactive room types keep history but cannot be booked |
+
+### 8.3 Room settings
+
+| Setting | Type | Default | Rule or behaviour |
+|---|---|---|---|
+| Number or name | text, unique per property | required | What housekeeping and guests see |
+| Room type | reference | required | A room belongs to exactly one room type; change requires no future bookings or confirmation |
+| Building, floor, wing, section | text | empty | Housekeeping sections and auto-assign proximity |
+| Occupancy override | max adults, max children, max total | inherit | A room in a type that normally sleeps 2 can be marked to sleep 3 |
+| Bed configuration override | list | inherit | For the one room in the type with a different layout |
+| Features | multi-select | empty | Balcony, sea view, accessible, ground floor, quiet, connecting |
+| Connecting room | reference | none | Used for virtual room types and family assignments |
+| Status | enum (clean, dirty, inspected, pickup, occupied, vacant) | clean | Set by housekeeping and reservation events |
+| Out of order, out of service | range with reason | none | OOO removes from availability; OOS keeps availability but blocks assignment |
+| Door lock reference | text | empty | Lock adapter target |
+| Smoking, pet friendly | boolean | from type | Assignment filters |
+| Notes | text | empty | Shown to front desk and housekeeping |
+
+### 8.4 Occupancy and pricing matrix
+
+How a price is formed for a given room type, rate plan, date and party.
+
+| Element | Definition |
+|---|---|
+| Party | Adults, children by bracket, infants, extra beds requested, cots requested |
+| Validation | Adults <= max adults; children <= max children; adults plus children <= max total (plus extra beds if allowed); adults >= min occupancy; infants <= max cots |
+| Base price | Price for standard occupancy on the rate plan for that date |
+| Per-occupancy prices | Optional explicit price for 1, 2, 3 ... adults; if absent, base plus or minus adult supplement per difference from standard occupancy |
+| Single-use discount | Negative supplement when adults is below standard occupancy |
+| Child supplements | Per bracket, per night, per child; may be zero or free up to N children |
+| Extra bed and cot charges | Per night supplements, posted as separate charge codes |
+| Meal plan | Included in rate or priced per person per night by bracket |
+| Length-of-stay pricing | Optional price per night by stay length band on the rate plan |
+| Taxes | Applied per charge code after supplements |
+| Rounding | Property rounding rule, default nearest 0.01, optional nearest 1 or 5 |
+| Channel representation | Channels that accept only per-occupancy prices receive a table of prices for 1 to max adults; children supplements are flattened where the channel cannot express them |
+
+### 8.5 Rate plan settings
+
+| Setting | Type | Default | Rule or behaviour |
+|---|---|---|---|
+| Code, name per language | text | required | Channel mapping key and guest display |
+| Type | enum (public, private, corporate, agent, package, OTA-only, group) | public | Private plans need a code or login; corporate plans attach to companies |
+| Room types | multi-select | all | Which room types the plan sells |
+| Parent plan and derivation | reference, percent or amount, direction | none | Derived plans recompute when the parent changes; derivation can be per room type and per day of week |
+| Currency | inherit | property | Multi-currency display only on the booking engine |
+| Pricing mode override | enum | inherit from room type | A package may price per person even if the room type prices per room |
+| Price table | per room type per date | required for non-derived | Edited in the rate calendar; bulk by range and weekday |
+| Occupancy supplements | adult, single-use, child per bracket, extra bed, cot | inherit | Overrides property-level supplements |
+| Meal plan | enum (room only, breakfast, half board, full board, all inclusive) | room only | Drives package components and EPOS redemption |
+| Package components | list of (charge code, quantity, per night or per stay, per person or per room, value) | empty | Revenue is split to components on posting for accurate department reporting |
+| Cancellation policy | reference | property default | Pinned to the reservation at booking |
+| Deposit policy | reference | property default | Fixed, percent, first night, full prepay; due at booking or N days before |
+| Guarantee policy | reference | card required | None, card required, pre-authorisation amount |
+| No-show policy | reference | first night | Charged at night audit |
+| Booking window | min and max days before arrival | none | Advance purchase and last minute |
+| Length of stay | min and max nights | none | Can be per date via restrictions |
+| Stay dates and sell dates | ranges | open | When the plan is valid and when it can be sold |
+| Days of week sellable | set | all | Weekend-only packages |
+| Channels | multi-select with per-channel markup | all public | OTA-only plans hidden from direct |
+| Loyalty or member only | boolean | false | Booking engine login or code |
+| Promo code required | boolean, codes | false | Links to the promotions module |
+| Payment timing | enum (pay at hotel, pay now, deposit) | pay at hotel | Booking engine checkout behaviour |
+| Commissionable | boolean, percent | true, 0 | For agent and corporate plans |
+| Yield controls | enum (open, closed, managed by rules) | open | Whether the revenue engine may change this plan |
+| Display order, active | integer, boolean | end, true | |
+
+### 8.6 Restrictions
+
+| Setting | Scope | Behaviour |
+|---|---|---|
+| Stop sell | room type or rate plan, per date | Removes from sale on all channels; cascades automatically at zero availability |
+| Closed to arrival | per date | No stays may start on the date |
+| Closed to departure | per date | No stays may end on the date |
+| Min stay through, min stay arrival | per date | Minimum nights for stays including or starting on the date |
+| Max stay | per date | Maximum nights |
+| Release period | days before arrival | Plan closes within N days of arrival |
+| Max advance booking | days | Plan closes beyond N days |
+| Allotment | per channel per room type per date | Caps rooms a channel may sell; defaults to shared pool |
+
+### 8.7 Policies
+
+| Policy | Settings | Behaviour |
+|---|---|---|
+| Cancellation | Free until N days or hours before check-in time; then charge fixed, percent, first night or full; non-refundable flag; text per language | Refund engine computes refundable amount from the version pinned at booking |
+| Deposit | Amount type (fixed, percent, nights), due (at booking, N days before, at check-in), collection method (card on file, pay-by-link), auto-charge | Scheduler collects and reminds |
+| Guarantee | None, card details required, pre-authorisation amount or first night | Booking engine and OTA bookings apply it |
+| No-show | Charge amount type, auto-process at audit, release room at audit | Night audit executes |
+| Early check-in and late check-out | Time thresholds, fee or free, availability dependent | Guest app upsell and desk |
+| Children and extra beds | Free up to N children per bracket, extra bed fee, cot fee | Pricing matrix |
+| Pets | Allowed, fee per night or stay, max count | Booking engine filter and posting |
+| House rules | Free text per language, must be accepted | Online check-in acceptance recorded |
+
+### 8.8 Taxes, levies and charge codes
+
+| Setting | Type | Behaviour |
+|---|---|---|
+| Tax rule | name, rate or fixed amount, basis (percent of net, per night, per person per night, per stay), inclusive or exclusive, applies to charge codes, exemptions (children, long stay over 28 nights, business), effective dates | Calculated per posting; UK VAT on accommodation at 20 percent with the 28-day reduced-value rule supported; visitor levies as per-night or percent with exemptions |
+| Charge code | code, name, department (rooms, F&B, events, spa, retail, other), revenue category, tax rule, GL account, allows negative, allows manual posting, EPOS category link | Every posting references one; EPOS items map to a charge code so one chart of accounts covers rooms and food |
+| Service charge and tronc | percent, optional, applies to departments, tronc flag | Posted as a separate code, excluded from VAT where tronc rules apply |
+| Commission codes | agent and channel commission percent, calculated on net or gross | Feeds cost of acquisition and agent statements |
+
+### 8.9 Guest profile fields and consents
+
+| Field group | Fields | Rule |
+|---|---|---|
+| Identity | title, first and last names, date of birth, nationality, language | Required set configurable per property |
+| Contact | email, phone, address | Email or phone required for messaging |
+| Travel document | type, number, issuing country, expiry; encrypted | Required for non-UK guests under UK hotel records rules; purged per retention |
+| Preferences | room, pillow, floor, dietary, allergies, newspaper | Shown at assignment and to housekeeping |
+| Consents | marketing email, SMS, WhatsApp, profile retention, card on file | Timestamped with source; messaging respects them |
+| Flags | VIP level, blacklist with reason, do not disturb, repeat guest | Alerts at booking and check-in |
+| Company links | employer, booker, payer | City ledger and corporate rates |
+
+### 8.10 Housekeeping configuration
+
+| Setting | Type | Behaviour |
+|---|---|---|
+| Task types | name, default credits, checklist, requires inspection, triggers (departure, stay-over day N, linen change every N nights, deep clean every N days, on request) | Generation rules |
+| Sections | named groups of rooms | Assignment and reporting |
+| Shift templates | start, end, break, linked to rota roles | Only staff on shift are assignable |
+| Status rules | which status a room goes to on check-out, on task completion, on inspection pass | Front desk visibility |
+| Linen items | name, category, par per room type, par per pantry, cost, laundry supplier, lifecycle washes | Counts and condemnation |
+| Stock items | amenities and chemicals with pars and reorder points | Counts and alerts |
+| Inspection scoring | pass threshold, photo required on fail | Quality reporting |
+| Maintenance categories | plumbing, electrical, furniture, IT, exterior; SLA hours per priority | Ticket routing and KPIs |
+
+### 8.11 Channel configuration
+
+| Setting | Type | Behaviour |
+|---|---|---|
+| Channel account | channel, property id on channel, credentials via aggregator, status | One per channel per property |
+| Room type mapping | Zynthio room type to channel room id, with occupancy check | Warns if channel max occupancy differs from Zynthio max |
+| Rate plan mapping | Zynthio rate plan to channel rate id, markup percent or amount, rounding | Markups apply at push |
+| Occupancy mapping | how per-occupancy and child prices are flattened for the channel | Per channel capability |
+| Inventory mode | shared pool or allotment | Per room type per channel |
+| Restrictions to push | which restriction types the channel accepts | Per channel capability |
+| Reservation defaults | default guest language, default source and segment, auto-confirm, virtual card handling | Inbound mapping |
+| Content sync | push descriptions, photos and amenities | Where channel allows |
+| Sync schedule | full refresh time, retry policy, alert thresholds | Health dashboard |
+
+### 8.12 Revenue engine configuration
+
+| Setting | Type | Behaviour |
+|---|---|---|
+| Comp set | list of competitor property ids on the rate feed, weight | Market position and recommendations |
+| Price floors and ceilings | per room type, per season | Guardrails |
+| Max daily change | percent | Guardrail |
+| Mode | advise, approve, autopilot | Per property, with per-rate-plan override |
+| Rules | conditions (dates, weekdays, lead time, occupancy band, pickup, LOS, channel, event tags), actions (set, adjust, open, close, min stay), priority, active window | Evaluated in order, first match or cumulative as configured |
+| Promotions | type, code, discount, dates, LOS, channels, caps, stackable | Booking engine and channel promotions |
+| Events | name, dates, demand impact, source | Rules input |
+| Forecast settings | history window, seasonality, confidence threshold for autopilot | Model behaviour |
+
+### 8.13 Messaging and documents
+
+| Setting | Type | Behaviour |
+|---|---|---|
+| Message schedule | trigger (booking, N days before arrival, arrival day, N days after check-in, departure eve, departure, N days after), channel (email, SMS, WhatsApp), template, audience filter (source, rate plan, segment) | Scheduler sends via SendGrid or messaging adapter |
+| Templates | subject, body, merge fields, language, brand | Visual editor with preview using a sample reservation |
+| Documents | invoice, credit note, registration card, confirmation, folio statement; layout, legal footer, VAT number | PDF rendering |
+| Sender identities | from name and address, reply-to, SendGrid sub-user per property | Deliverability and branding |
+
+### 8.14 Roles and permissions (default matrix)
+
+| Capability | Owner | Property manager | Front desk | Night auditor | Housekeeping supervisor | Housekeeper | Revenue manager | Finance |
+|---|---|---|---|---|---|---|---|---|
+| Configure property, room types, rates | yes | yes | no | no | no | no | rates only | no |
+| Book, modify, cancel | yes | yes | yes | yes | no | no | no | no |
+| Check in and out, take payment | yes | yes | yes | yes | no | no | no | no |
+| Refund above threshold | yes | yes | no | no | no | no | no | yes |
+| Run night audit | yes | yes | no | yes | no | no | no | no |
+| Housekeeping board and tasks | yes | yes | view | view | yes | own tasks | no | no |
+| Linen and stock counts | yes | yes | no | no | yes | count only | no | view |
+| Pricing rules and promotions | yes | yes | no | no | no | no | yes | no |
+| Ledger, exports, accounting | yes | view | no | view | no | no | view | yes |
+| Users and roles | yes | property only | no | no | no | no | no | no |
+| Audit log | yes | yes | no | no | no | no | no | yes |
+
+Thresholds (refund limit, adjustment limit, discount limit) are per role and per property.

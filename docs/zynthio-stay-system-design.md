@@ -788,3 +788,164 @@ Distribution: PDF and live link to kitchen, bar, housekeeping, reception and AV;
 | Online meeting room booking | Instant booking and payment for small meeting rooms with day delegate rates |
 | Organiser portal | Gives the organiser their proposal, contract, function sheet, payments, rooming list and pre-orders in one place |
 | Post-event follow-up | Feedback request, repeat booking offer and anniversary reminders |
+
+---
+
+## 10. Operational sheets and reporting
+
+Operational sheets are the printed or on-screen lists a hotel runs its day from. Reports are the analysis. Both are generated from the same data, both are schedulable, printable, exportable (PDF, CSV, Excel) and visible on any device, and every sheet has a configurable column set, sort, filter and grouping saved per property and per user.
+
+### 10.1 Daily operational sheets
+
+| Sheet | Who uses it | Columns and content | Generated | Notes |
+|---|---|---|---|---|
+| Arrivals | Front desk, porters | Room, room type, guest name, pax (adults, children, infants), ETA, nights, rate plan, source and channel, balance and deposit status, pre-check-in status, VIP level, preferences, special requests, traces, cot or extra bed, pets, car registration, company, flags (blacklist, repeat guest) | Live, plus a printable snapshot at any time | Groups by ETA band or room type; shows unassigned rooms in red; one-tap check-in |
+| Departures | Front desk, housekeeping | Room, guest, pax, checkout time requested, late check-out sold, balance due, payment method on file, invoice recipient, next arrival into the room and their ETA, express check-out status | Live | Flags rooms with a same-day arrival for priority cleaning |
+| In-house guests | All departments | Room, guest, pax, arrival and departure dates, rate plan, meal plan, balance, credit limit status, DND, VIP, allergies and dietary, traces, room charge allowed | Live | Basis for fire sheet, breakfast and dinner sheets |
+| Fire and emergency roll call | Duty manager, fire marshal | Room, guest names for every registered occupant, pax, mobility or assistance needs, allergies not needed, checked-in time, staff on shift from rota with roles, contractors signed in, events in progress with pax per space | Live, auto-printed at a configured time (for example 23:00) and on demand; also available offline on the duty manager's phone | Registered occupants come from registration cards, so online check-in must capture every guest name; the sheet is the legal roll call |
+| Breakfast sheet | Kitchen, restaurant | Room, guest, pax by adult and child, meal plan (included, pre-paid, pay on day), breakfast time requested, dietary and allergens, table preference, in-room breakfast orders, event delegates with breakfast included | Night audit output, refreshed live | Totals by time slot drive kitchen prep; checked off on a tablet as guests arrive; no-shows and chargeable extras post to folios |
+| Dinner sheet | Kitchen, restaurant | Room, guest, pax, package dinner allowance (value or courses), table reservation time, dietary, pre-orders, events dinners by space | Night audit output, refreshed live | Links to the restaurant's table bookings in EPOS; allowance redemption on the till |
+| Housekeeping sheet (per housekeeper) | Housekeepers | Section, rooms in priority order, task type, credits, current status, expected arrival time, occupancy and pax, linen change due, cot or extra bed to set up, guest requests, DND, do-not-move items, maintenance notes | Generated after night audit from the assignment engine, live on the app, printable | Supervisor version shows all housekeepers and progress; inspection results write back |
+| Room status report | Housekeeping, front desk | Every room with status, housekeeping status, assigned housekeeper, inspection, OOO and OOS, discrepancies (sleep-outs, skips: front desk says occupied, housekeeping says vacant) | Live | Discrepancy report drives a physical check |
+| Linen and laundry sheet | Housekeeping | Clean issued, dirty collected and sent per item, returned and rejected, counts by pantry, par shortfalls, condemned | Daily | Reconciles to laundry delivery notes |
+| Maintenance sheet | Maintenance | Open tickets by priority and room, due today, OOO returns due, preventive tasks due | Live | |
+| VIP and special attention | Management | VIPs arriving, in house and departing, with preferences, amenities to place, notes | Daily | |
+| Traces and alerts | Front desk, all | Date-stamped actions attached to reservations or rooms (call guest about deposit, place flowers, confirm taxi), department, due, done by | Live | Overdue traces escalate |
+| Deposits due and taken | Front desk, finance | Reservations with deposit due today or overdue, amount, policy, collection method, reminder status; deposits taken today with method and receipt | Daily and live | One-click pay-by-link resend; links to deposit ledger |
+| Balances and credit limits | Front desk, finance | In-house folios over credit limit, high balances, cards on file expiring, auths expiring | Live | Night audit pre-check |
+| No-shows and cancellations | Front desk, revenue | Yesterday's no-shows with policy applied and charge status; cancellations with penalty applied, channel and reason | Night audit output | |
+| Cashier and shift report | Front desk, finance | Payments by method, cash drawer opening, paid-outs, closing count, variance, refunds, per user and shift | On shift close | Drawer count entered on screen; variance needs a reason |
+| Night audit pack | Night auditor, GM | Manager's report (occupancy, ADR, RevPAR, revenue by department, payments, ledger balances), trial balance, room and tax posting log, rate check exceptions (rate differs from plan), unposted EPOS checks, open folios of departed guests, zero-rate rooms, complimentary and house use, overbooking and oversell check, audit variances, business date roll confirmation | Night audit | Emailed to a configurable list |
+| Rate and rooms check | Night auditor, revenue | Reservations where the posted rate differs from the rate plan, manual rates, discounts over threshold, upgrades given free | Night audit | |
+| Pickup report | Revenue, GM | Rooms and revenue booked yesterday by arrival month and channel, cancellations netted | Daily | |
+| Forecast sheet | GM, kitchen, housekeeping | Next 14 and 30 days: rooms sold, arrivals, departures, pax in house, breakfasts and dinners expected, events pax, staffing suggestion from the rota module | Daily | This is the sheet the rota is built from |
+| Guest messages and parcels | Front desk | Messages taken, parcels received and handed over, with signatures and timestamps | Live | |
+| Wake-up calls and requests | Front desk, night | Room, time, status | Live | |
+| Car park sheet | Front desk, security | Registrations, bays, permits, in-house or event, overstay | Live | |
+| Lost property register | Housekeeping, front desk | Item, photo, where found, date, stored at, claimed by, returned or disposed | Live | Retention period per property |
+| Events today | All departments | Function sheets for today with timings, spaces, pax, catering counts and staff, in one view | Daily | |
+| Group arrivals and rooming | Front desk, porters | Group name, rooming list, pre-assigned rooms, keys cut, luggage tags, master account | Per group | Group check-in mode issues all keys at once |
+
+### 10.2 Reporting catalogue
+
+All reports support date ranges, comparison periods (last year, budget, forecast), property and group level roll-up, drill-down to the reservation or posting, scheduling and export.
+
+**Performance**
+
+| Report | Measures and breakdowns |
+|---|---|
+| Daily, monthly and yearly performance | Occupancy, rooms sold, ADR, RevPAR, TRevPAR, revenue by department, by day and month, versus last year and budget |
+| Pace and on-the-books | Rooms, revenue and ADR on the books for future dates versus same point last year |
+| Pickup | Daily change in rooms and revenue by arrival date, channel and segment |
+| Segment, source and channel mix | Revenue, ADR, length of stay and lead time by market segment, source, channel, company and agent |
+| Cost of acquisition | Commission and channel fees by channel against revenue; direct share |
+| Rate plan performance | Revenue and nights by rate plan; package uptake |
+| Length of stay and lead time distribution | Histograms by month |
+| Day of week and seasonality | Occupancy and ADR by weekday and month |
+| Cancellations and no-shows | Counts, value, rate, by channel, lead time and policy |
+| Upsell and ancillary | Revenue by upsell item, conversion by surface (booking engine, online check-in, desk) |
+| Guest geography and demographics | Nationality, origin, repeat rate |
+| Reviews and reputation | Scores by platform over time against occupancy, from the existing reputation module |
+
+**Revenue management**
+
+| Report | Measures |
+|---|---|
+| Market position | Rank and price index against comp set by date |
+| Rate parity | Violations by channel and date |
+| Recommendation performance | Accepted, rejected and applied recommendations and the revenue outcome |
+| Displacement and group evaluation | Transient revenue displaced by blocks |
+| Forecast accuracy | Forecast versus actual occupancy and revenue by lead time |
+
+**Finance**
+
+| Report | Measures |
+|---|---|
+| Manager's daily report | The night audit summary |
+| Revenue journal | Postings by charge code, department and tax code |
+| Tax report | VAT by rate and levy collected, with exemptions |
+| Payments and settlements | By method, terminal, user and settlement batch; reconciliation to Dojo |
+| Guest ledger | In-house balances and ageing |
+| City ledger and debtors | Company and agent balances, ageing, statements, credit limit breaches |
+| Deposit ledger | Advance deposits held, applied and refunded; liability at period end |
+| Refunds and adjustments | By user, reason code and value |
+| Waivers and discounts | By user and reason |
+| Commission payable | By agent and channel |
+| Invoice register | Sequential list with status |
+| Trial balance and GL export | Daily and period summaries by account |
+| Profit and loss by department | Revenue less direct costs where EPOS recipe cost and rota labour are available |
+
+**Operations**
+
+| Report | Measures |
+|---|---|
+| Housekeeping productivity | Minutes and credits per room, rooms per shift, inspection pass rate, by housekeeper |
+| Room status discrepancies | Sleep-outs and skips by day |
+| Linen usage and cost | Items per occupied room, shrinkage, laundry cost |
+| Maintenance | Tickets opened and closed, time to resolve, by category and room; OOO nights lost |
+| Incidents and damages | By category, recovery rate |
+| Lost property | Open and returned |
+| Guest requests | Volume and response time by type |
+| Labour versus revenue | Rota hours and cost by hour against rooms and F&B revenue, from the existing rota module |
+| Breakfast and dinner covers | Expected versus served, no-shows, chargeable extras |
+
+**Events**
+
+| Report | Measures |
+|---|---|
+| Pipeline and conversion | Enquiries by stage, conversion rate, lost reasons, coordinator |
+| Space utilisation | Occupied hours per space by day part |
+| Event profitability | Revenue, costs and margin by event and type |
+| Bedroom block pickup | Pickup against allotment and attrition exposure |
+
+**Compliance and audit**
+
+| Report | Measures |
+|---|---|
+| Registration compliance | Guests without a completed registration card or required ID |
+| Audit log | Configuration and financial changes by user |
+| User activity | Logins, failed logins, permission changes |
+| GDPR | Retention jobs run, erasure requests, consent status |
+| Channel sync health | Push failures, latency, acknowledgement time by channel |
+
+### 10.3 Report builder
+
+A custom report builder lets a manager pick a dataset (reservations, postings, payments, rooms, tasks, events), choose columns, filters and grouping, add calculated fields, save the report, share it with roles, and schedule it. Saved reports can be pinned to the existing KPI dashboard as tiles.
+
+---
+
+## 11. Smaller functions that are easy to miss
+
+| Function | What it does |
+|---|---|
+| Traces | Date-stamped to-dos attached to a reservation, guest or room, routed to a department, with escalation when overdue |
+| Guest messages and parcels | Logs messages and deliveries for in-house and arriving guests with hand-over signature |
+| Wake-up calls | Scheduled per room with completion status |
+| Group check-in | Checks in a rooming list in one action, issues all keys, prints luggage tags and welcome letters |
+| Rate override and discount approvals | Threshold-based approvals with reason codes, reported nightly |
+| Complimentary and house use | Zero-rate rooms with reason and approver, reported separately from paid occupancy |
+| Day use and hourly rooms | Same-day in and out with its own rate plans and housekeeping task |
+| Sleep-out and skip handling | Discrepancy workflow between front desk and housekeeping status |
+| Guest ID verification | Document capture with optional automated checks, stored encrypted, purged on retention |
+| Multi-property central view | Group-level arrivals, availability, rates and reports across properties; central reservations with cross-selling when one property is full |
+| Cross-property guest profiles | One profile and preferences across the group with consent |
+| Shared booking engine for a group | One site selling all properties with a map and compare view |
+| Rate and availability API for the hotel's own website | Embeddable widget and REST endpoints |
+| Tour operator and allotment contracts | Contracted allotments with release dates and net rates, manifest import |
+| Gift vouchers and prepaid stays | Sold online, tracked as liabilities, redeemed on folio |
+| Loyalty and member pricing | Tags, tiers and member-only rates on the booking engine |
+| Guest Wi-Fi and TV integration | Pushes guest name and check-out to Wi-Fi and TV systems and clears on departure |
+| Door lock integration | Key cards, mobile keys and PIN codes issued and revoked by reservation |
+| Telephone and call accounting | Posts call charges where phones still exist |
+| Parking and EV charging | Bay inventory, permits and charges |
+| Shuttle and taxi bookings | Requests and traces for transport |
+| Early departure and stay extension pricing | Re-prices nights and applies early departure fees per policy |
+| Room move with folio and key handling | Moves charges and reissues keys in one flow |
+| Dirty room sale protection | Prevents selling a dirty or OOO room without an override |
+| Overbooking resolution | Shows oversold dates, suggests walk candidates and partner hotels, records walk costs |
+| Walk-in rate suggestions | Shows the revenue engine's current recommendation at the desk |
+| Guest feedback and complaints log | Records issues, compensation given and resolution, feeds reputation and incident reports |
+| Document archive | Signed registration cards, contracts, invoices and ID documents retrievable per reservation |
+| Data export and portability | Full export per property for audits or exit |
+| Offline mode for front desk | Read-only arrivals, in-house and fire sheet cached on the desk device if the connection drops |
+| Printer and hardware management | Receipt and document printers, key encoders and terminals per device, through the existing Jarltech hardware range |

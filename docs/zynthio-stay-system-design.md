@@ -647,3 +647,144 @@ Every fee is a configurable **charge item** with a charge code behind it, so it 
 | Night audit | Auto-posts no-shows, facility fees and unpaid late check-outs; lists fees awaiting approval |
 | Channels | Mandatory fees declared to OTAs that require fee disclosure; optional fees excluded from pushed rates |
 | Reports | Fee revenue by item, waiver rate and value by user, dispute rate, incident recovery |
+
+---
+
+## 9. Events and conference module ("Gather")
+
+Covers meetings, conferences, weddings, private dining, function room hire and any event that combines space, catering, equipment and bedrooms. Shares the inventory engine with rooms (a function room is a bookable unit with a calendar), the folio and ledger with the PMS, and the kitchen and bar with the EPOS.
+
+### 9.1 Venue and space configuration
+
+| Setting | Type | Default | Rule or behaviour |
+|---|---|---|---|
+| Space code, name, description, photos, floor plan | text, media | required | Shown on proposals and the events enquiry page |
+| Space type | enum (meeting room, boardroom, conference hall, ballroom, private dining, bar area, terrace, marquee site, whole venue) | meeting room | Filters and reporting |
+| Capacities by layout | map layout to max pax (theatre, classroom, boardroom, U-shape, cabaret, banquet, reception, dinner dance) | required | Validates attendee count against chosen layout |
+| Area, ceiling height, natural light, access | attributes | empty | Proposal content and filters |
+| Fixed equipment | list (screen, projector, PA, lectern, stage, dance floor, Wi-Fi) | empty | Included items on function sheet |
+| Combinable spaces | list of (component spaces) | none | A ballroom bookable whole or as two halves; booking the whole blocks the parts and the reverse |
+| Setup and breakdown time | minutes before and after | 60, 60 | Blocks the space calendar beyond the event hours |
+| Operating hours and licence hours | per weekday | property hours | Validation and late licence fee trigger |
+| Noise and curfew rules | time, text | none | Function sheet and contract clauses |
+| Minimum spend by day part and weekday | money | none | Enforced on proposals, waivable with approval |
+| Room hire tariff | see 9.4 | required | |
+| Housekeeping and porter tasks | task types and credits per layout change | preset | Drives setup tasks in the housekeeping app |
+| Active, display order, bookable online | boolean, integer, boolean | true, end, false | Online enquiry versus instant booking for small meeting rooms |
+
+### 9.2 Enquiry to contract pipeline
+
+| Stage | What happens | Data captured |
+|---|---|---|
+| Enquiry | From web form, phone, email or walk-in; auto-acknowledged; assigned to an events coordinator | Organiser, company, event type, dates with flexibility, pax range, budget, spaces of interest, bedrooms needed, source |
+| Availability check | Space calendar, bedroom availability, kitchen capacity (covers per service from the EPOS production module) and staffing (rota) checked together | Conflicts shown with alternatives |
+| Proposal | Branded PDF and web proposal built from spaces, packages, menus, bedrooms and extras with pricing; multiple options allowed; expiry date | Versioned; opens tracked |
+| Provisional hold | Space and bedrooms held with a release date; automatic reminders; auto-release or escalate | Hold expiry, decision date |
+| Contract | Terms, deposit schedule, cancellation terms, minimum numbers, attrition and final numbers deadline, e-signature | Signed PDF stored; policies pinned |
+| Deposit and payment schedule | Instalments by date or milestone, pay-by-link, card on file | Scheduler collects, reminds and escalates |
+| Planning | Function sheet built and revised with the organiser; final numbers, dietary, timings, AV, layout, signage, accessibility | Change log |
+| Delivery | Function sheet distributed to kitchen, bar, housekeeping, reception, AV; day-of checklist | Actuals recorded |
+| Billing | Master account consolidated with EPOS tabs, bedrooms and extras; invoice; balance collection | Final invoice, credit notes |
+| Follow-up | Feedback request, repeat booking offer, pipeline for next year's date | Organiser history |
+
+Pipeline views: kanban by stage, calendar by space, forecast by month with weighted probability, coordinator workload. Lost enquiries capture a reason and competitor.
+
+### 9.3 Function sheet (banquet event order)
+
+One function sheet per event, with a section per space and day. Generated from the booking data and edited in place; every version is stored and the delta is shown.
+
+| Section | Content |
+|---|---|
+| Header | Event name, organiser and on-site contact, company, coordinator, status, version, date issued, final numbers deadline |
+| Timings | Access, setup complete, arrival, each session or course, breaks, carriages, breakdown, per space |
+| Layout | Layout per space and time with pax, top table, stage, dance floor, registration desk, cloakroom; diagram attached |
+| Catering | Menu per service with course detail, service style (plated, buffet, bowl food, canapés), numbers per menu choice, dietary and allergen matrix per guest or table, children's and crew meals, tea and coffee breaks with times and quantities |
+| Beverage | Drinks packages, bar type (cash, account, pre-paid tab with limit), wine per table, toast drinks, licence times, corkage |
+| Equipment and AV | Items, quantities, source (in-house or hired), supplier, delivery and collection times, technician on site |
+| Accommodation | Bedroom block summary, rooming list status, arrival pattern, VIP rooms, upgrades, breakfast times |
+| Staffing | Roles and headcount per time slot (front of house, kitchen, porters, AV, security), linked to rota so the shifts are published from the sheet |
+| Billing instructions | What goes to master account, what guests pay individually, deposit received, balance due, PO number, who signs |
+| Special requirements | Accessibility, signage, branding, deliveries, parking, security, entertainment, children, photography |
+| Sign-off | Organiser approval with e-signature, internal departmental acknowledgement |
+
+Distribution: PDF and live link to kitchen, bar, housekeeping, reception and AV; kitchen receives a production view (covers by course and time with allergens) that feeds the EPOS kitchen screens. Changes after the lock date raise a change notice with cost impact.
+
+### 9.4 Room hire pricing
+
+| Setting | Type | Behaviour |
+|---|---|---|
+| Tariff structure | per hour, half day, full day, evening, 24-hour, per event, per weekend | Multiple tariffs per space; the engine picks the cheapest valid combination or the one the coordinator selects |
+| Day parts | configurable windows (morning, afternoon, evening) with prices | Weekday and season variants |
+| Seasonal and weekday pricing | calendar of price bands | Saturdays in summer for weddings |
+| Minimum spend offset | boolean, percent | Room hire waived or reduced when food and beverage spend exceeds a threshold |
+| Setup and breakdown charging | free, hourly, flat | Beyond included time |
+| Overrun charges | per hour or part hour, grace minutes | Posted from actual end time recorded on the day |
+| Late licence fee | fixed or hourly | Triggered by licence hours |
+| Combinable space pricing | whole price versus sum of parts | Rule when a combined space is sold |
+| Discounts | charity, repeat client, agency, midweek | With approval limits |
+| Agency commission | percent on hire, on total, on specific components | Agent statements |
+| VAT | standard rated; configurable for exempt hirers where applicable | Tax rule per charge code |
+| Deposit and cancellation | tiered by lead time (for example 25 percent at contract, 50 percent at 90 days, 100 percent at 30 days) | Policy engine |
+
+### 9.5 Delegate packages and catering
+
+| Element | Settings | Behaviour |
+|---|---|---|
+| Delegate package | name, day delegate or 24-hour, inclusions (room hire, arrival coffee, mid-morning break, lunch type, afternoon break, water, stationery, AV, Wi-Fi, bedroom, dinner, breakfast), price per delegate, minimum numbers, price bands by volume, upgrade options | Posts as components to the correct departments (hire, food, beverage, rooms) for accurate reporting; 24-hour packages create bedroom reservations in the block |
+| Menus | courses, dishes with allergens and dietary tags, price per head, minimum numbers, seasonal availability, kitchen prep time, linked EPOS items | Allergen matrix auto-built per event; items flow to kitchen screens |
+| Drinks packages | per head or per bottle, duration, inclusions | Posts to beverage |
+| Pre-orders | organiser or guests submit menu choices per attendee online with dietary notes; table plan assignment | Kitchen production counts and place cards |
+| Attrition | contracted minimum, final numbers deadline, charge for shortfall | Billing engine |
+| Extras catalogue | AV hire, flipcharts, staging, flowers, cake, entertainment, security, cloakroom, parking, printing | From the extra charges engine (8.15) with supplier cost and margin |
+| Supplier and hire management | supplier records, purchase orders from the function sheet, delivery schedule, cost reconciliation against invoices | Event profitability |
+| Minimum numbers and guarantees | per menu and package | Enforced at contract and final numbers |
+
+### 9.6 Bedroom blocks for events
+
+| Function | Behaviour |
+|---|---|
+| Block creation | Allotment per room type per night with a negotiated rate plan, cut-off date and release rules (release all, release unsold, convert to transient) |
+| Rooming list | Upload or online form; names, sharing, arrival and departure, special requests; creates reservations in the block |
+| Individual pickup | Guests book into the block with a code on the booking engine; pickup tracked against allotment; wash factor applied to forecasting |
+| Billing split | Rooms to master account, incidentals to guest, or any mix per block |
+| Cut-off handling | Reminders to organiser, auto-release at cut-off with notice |
+| Reporting | Pickup versus block, attrition exposure, block revenue |
+
+### 9.7 Billing and ledger for events
+
+| Function | Behaviour |
+|---|---|
+| Master account | One event folio with windows for organiser, company, sponsor and individual payers |
+| EPOS link | Bar and catering tabs on the till post to the event account by event code; cash bar sales attributed to the event for profitability without posting to the account |
+| Deposit schedule | Instalments collected by pay-by-link or card on file; receipts and VAT treatment for deposits handled correctly |
+| Actuals versus contract | Final numbers, overruns, extras and attrition applied automatically after the event; coordinator reviews before invoicing |
+| Invoicing | Proforma before the event, final VAT invoice after, split invoices per payer, PO references, credit notes |
+| Profitability | Revenue by component against supplier costs, staffing cost from the rota and kitchen cost from EPOS recipes; margin per event and per event type |
+| Commission | Agency statements and payment tracking |
+
+### 9.8 Events function catalogue
+
+| Function | What it does |
+|---|---|
+| Space calendar | Shows every space by day with holds, confirmed events, setup and breakdown blocks, and combinable space logic |
+| Enquiry capture | Takes enquiries from web, phone or email into a pipeline with auto-acknowledgement and assignment |
+| Availability finder | Checks spaces, bedrooms, kitchen capacity and staffing together and offers alternatives |
+| Proposal builder | Assembles branded proposals from spaces, packages, menus, bedrooms and extras with expiry and tracking |
+| Provisional holds | Holds inventory with release dates, reminders and automatic release |
+| Contract and e-signature | Generates contracts from templates with pinned terms and collects signatures |
+| Payment schedules | Creates instalments and collects them automatically with reminders |
+| Function sheet editor | Builds, versions and distributes the banquet event order with departmental views |
+| Pre-order portal | Lets organisers and attendees choose menus and declare dietary needs online |
+| Allergen matrix | Compiles allergens per guest, table and course for the kitchen |
+| Table planner | Drag-and-drop seating plan linked to pre-orders and place cards |
+| Staffing from sheet | Publishes required shifts to the rota module and checks labour cost against the event budget |
+| Supplier orders | Raises purchase orders for hired items and reconciles supplier invoices |
+| Bedroom blocks | Manages allotments, rooming lists, pickup and release for event bedrooms |
+| Event master account | Consolidates all charges with payer windows and EPOS tabs |
+| Actuals reconciliation | Applies final numbers, overruns and attrition before invoicing |
+| Event invoicing | Issues proforma, final and split VAT invoices with PO references |
+| Event profitability | Reports margin per event with revenue, supplier, labour and food costs |
+| Pipeline and forecast | Kanban, weighted forecast, conversion and lost-reason reporting |
+| Online meeting room booking | Instant booking and payment for small meeting rooms with day delegate rates |
+| Organiser portal | Gives the organiser their proposal, contract, function sheet, payments, rooming list and pre-orders in one place |
+| Post-event follow-up | Feedback request, repeat booking offer and anniversary reminders |

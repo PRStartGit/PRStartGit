@@ -220,34 +220,34 @@ Months 1 to 10 deliver a sellable product. Months 11 to 18 remove aggregator cos
 
 All figures exclude VAT and are estimates to be validated with quotes. GBP unless stated.
 
-### 5.1 Build cost (phases 0 to 6, roughly 10 to 11 months)
+### 5.1 Build cost
 
-Team assumed: 1 product lead (Attila, part time), 1 tech lead, 2 full-stack engineers, 1 mobile engineer (from phase 4), 1 designer (part time), 1 QA (part time from phase 2). UK contractor day rates of 450 to 650, or employees at 55k to 95k.
+Zynthio builds this in-house with the founder and AI-assisted engineering, as the rest of the platform was built. Cash build cost is therefore founder time plus AI tooling, not salaries. Where a specialist is worth a short engagement (ledger design review by a hotel accountant, a payments security review), budget 2k to 5k each.
 
-| Option | Description | Build cost |
-|---|---|---|
-| A. In-house core team | 3 to 4 engineers plus part-time design and QA for 10 months | 320k to 450k |
-| B. Hybrid | 2 in-house engineers plus a specialist agency for channel sync and payments | 380k to 520k |
-| C. Agency build | Outsourced UK or EU agency, Zynthio as product owner | 450k to 700k |
-| D. Lean founder build with AI tooling | 1 to 2 senior engineers plus heavy use of AI coding assistance, slower cadence (14 to 16 months) | 180k to 280k |
+For reference, hiring the work out would cost 180k to 280k for a lean two-engineer build over 14 to 16 months, or 320k to 450k for a team of three to four over 10 months, at UK contractor rates of 450 to 650 a day.
 
-Option D matches how Zynthio has shipped so far and is credible for phases 1 to 4. Payments, ledger and channel sync are the places where a short engagement with a specialist (2 to 4 weeks each) pays for itself.
+### 5.2 Third-party API and compliance costs
 
-### 5.2 One-off and compliance costs
+The OTA APIs are free to software partners; the OTAs earn commission from the hotel. The cost of going direct is certification time, not fees.
 
 | Item | Cost |
 |---|---|
-| Channex onboarding | 0 (no setup fee per their published pricing) |
-| Dojo integration and certification | 0 to 5k (partner programme already signed) |
-| Penetration test | 6k to 12k per year |
+| Booking.com Connectivity API | 0; certification, self-assessment and PII review, 3 to 6 months of work |
+| Expedia Group Connectivity API | 0; ARI, booking, virtual card and promotion support plus EQC certification, 3 to 5 months |
+| Airbnb API | Not available to new partners; reach it via the aggregator |
+| Google Hotel Ads free booking links | 0; Hotel Center account and price feed |
+| GDS via a switch (Derbysoft or similar) | Monthly fee plus per-booking fee; only when a corporate customer requires it |
+| Channex white-label aggregator | 130 USD a month platform fee plus 7 USD per connected hotel per month (6 USD at 500 plus); no setup fee, no commission; sandbox free |
+| Rate shopping data feed (Yield module) | 15 to 40 per property per month; sold on to the hotel as an add-on |
+| Dojo | 0 to Zynthio; hotel pays transaction fees, Zynthio earns partner revenue share |
+| Penetration test | 6k to 12k per year, from first paying hotels |
 | PCI DSS SAQ and ASV scans | 1k to 3k per year |
-| Cyber Essentials Plus | 2k to 4k |
+| Cyber Essentials Plus | 2k to 4k, needed for university and public-sector tenders |
 | Legal: terms, DPA, OTA partner agreements | 5k to 10k |
 | Design partner incentives (free year for 3 to 5 hotels) | 10k to 20k forgone revenue |
-| Technical writer and trainer (part time, phases 3 to 6) | 20k to 35k |
-| Video production (in-house screencasts, tooling) | 2k to 5k |
-| Booking.com direct certification (phase 7) | 0 fee, but 3 to 6 months of 1 engineer: 40k to 70k |
-| Expedia direct certification (phase 7) | 0 fee, 3 to 5 months of 1 engineer: 35k to 60k |
+| Video production tooling | 2k to 5k |
+
+Cash outlay to launch the channel manager is close to zero: the Channex sandbox is free and billing starts only when a hotel connects its first channel.
 
 ### 5.3 Running costs (monthly, at 50 and 300 properties)
 
@@ -259,9 +259,9 @@ Option D matches how Zynthio has shipped so far and is credible for phases 1 to 
 | Hosting, database, storage, queues, monitoring | 600 to 1,200 | 2,000 to 4,000 |
 | Email and SMS (transactional) | 150 to 300 | 800 to 1,500 |
 | App store fees, mapping, misc SaaS | 150 | 300 |
-| Support and onboarding staff (1 FTE at 50, 3 FTE at 300) | 3,500 | 10,500 |
-| Ongoing engineering (2 FTE at 50, 4 FTE at 300) | 14,000 | 28,000 |
-| **Total** | **19,500 to 21,500** | **48,000 to 58,000** |
+| **Total third-party cost** | **2,000 to 4,000** | **9,500 to 19,500** |
+
+Support and engineering time is founder time at launch; budget a first support hire at around 40 properties and a second engineer at around 100.
 
 Dojo transaction fees are paid by the hotel, not Zynthio; Zynthio earns partner revenue share on volume, which can be material once rooms revenue flows through Dojo.
 
@@ -281,7 +281,7 @@ Proposed per-property monthly pricing (per room, with floors):
 
 A 20-room inn on the bundle pays about 2,400 a year, under half the cost of a typical PMS, channel manager and RMS stack, while Zynthio's variable cost for that property (aggregator and rate feed) is roughly 25 to 45 a month. Gross margin on software is above 75 percent before support.
 
-Break-even on Option D build cost (about 230k midpoint plus 20k a month running) arrives at roughly 150 bundle properties or 250 properties on PMS plus Connect. The WithUS deal alone would cover two hotels plus the venue; the university's 18 restaurants are already EPOS revenue.
+With no salaried build cost, the modules are cash-positive from the first few properties: a 20-room bundle at 199 a month carries roughly 25 to 45 of variable third-party cost. Hosting and compliance overheads are covered by about 15 to 20 properties. The WithUS deal alone would cover two hotels plus the venue; the university's 18 restaurants are already EPOS revenue.
 
 ---
 
@@ -304,7 +304,7 @@ Break-even on Option D build cost (about 230k midpoint plus 20k a month running)
 3. Confirm with Dojo: pre-authorisation, incremental auth, capture, tokenised card on file and pay-by-link availability on the partner API, and the PCI scope they certify.
 4. Shortlist two rate-shopping data providers and request per-property pricing.
 5. Write the domain model for Inventory, Reservations and Ledger, and get it reviewed by an accountant who has run hotel books.
-6. Decide the build option (recommend D now, moving to A once revenue exceeds 25k a month).
+6. Open the Channex sandbox and the Dojo partner API sandbox and build the first vertical slice (room type, rate, availability, one booking pulled and paid) within the first fortnight.
 7. Register for the Booking.com and Expedia connectivity developer portals now so the direct route clock starts.
 
 ---

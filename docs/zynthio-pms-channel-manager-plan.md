@@ -72,13 +72,15 @@ Zynthio EPOS is already live. The PMS adds:
 - Direct booking engine: mobile-first, white-labelled per property, rate comparison widget against OTAs, promo codes, upsells, packages, Dojo checkout, metasearch feed (Google Hotel Ads free booking links first).
 - Metasearch and GDS later: Google Hotel Ads, Trivago, TripAdvisor; GDS via a switch (Derbysoft or DHISCO) only when a corporate-heavy customer needs it.
 
-**Connectivity strategy (two routes, run in sequence)**
+**Connectivity strategy: build the channel manager, connect direct**
 
-Route A, launch: integrate an aggregator channel manager API and white-label it. Channex is wholesale only, never sells to hotels, has 100-plus channels including Booking.com, Expedia, Airbnb, Agoda, Hostelworld, Google Hotel Ads and the GDS switches, and publishes its pricing. This gets Zynthio to market in weeks instead of the 6 to 12 months direct certifications take, and it solves the Airbnb problem (Airbnb has closed new API partner intake; access comes via an already-certified partner).
+Zynthio builds and owns the whole channel manager: the availability and rate engine, channel mapping, the ARI outbox, inbound reservation processing and health monitoring. Channels connect through adapters behind one interface.
 
-Route B, scale: become a direct Booking.com Connectivity Partner and an Expedia Group Connectivity Partner once there are around 150 to 300 properties. Direct connections remove the per-property aggregator fee, earn partner-programme tier status (Booking.com Standard, Preferred, Premier, Premier Plus from 2026; Expedia Preferred and Elite), and unlock co-marketing. Keep the aggregator for the long tail of channels.
+- **Direct from day one:** Booking.com Connectivity APIs and Expedia Group Lodging Connectivity APIs, both free to software partners. Register as a connectivity provider on both developer portals immediately; certification needs test requests against their sandboxes and, before go-live, at least one live property, so the first design partner is also the certification property. Google Hotel Ads free booking links via a price feed.
+- **iCal two-way sync** for Airbnb, Vrbo and similar channels that do not offer API access to new partners. iCal carries availability only (blocked dates), so bookings from those channels are entered from the channel's notification email or imported, and rates are managed in the channel's own extranet. This is the honest limit while Airbnb's partner intake is closed.
+- **Aggregator as optional adapter only.** A white-label aggregator (Channex or similar) can be plugged in later for long-tail channels (Agoda, Hostelworld, regional OTAs, GDS) if a customer needs them. No dependency on it for launch.
 
-Requirements observed for the direct route: Booking.com requires certification against their test endpoints, a self-assessment and a PII compliance review, and expects partners to keep up with API changes. Expedia requires a Property Distribution Software system type, acceptance of the API licence, Availability and Rates API with Expedia Traveler Preference, Booking APIs with virtual card and Value Add Promotion support, and PCI compliance where applicable, with end-to-end certification by their EQC team; the programme runs on an annual cycle.
+Requirements observed for the direct route: Booking.com requires certification against their test endpoints, a self-assessment and a PII compliance review, and expects partners to keep up with API changes; partners start at Standard tier and move up (Preferred, Premier, Premier Plus from 2026) on connection quality and booking success rate. Expedia requires a Property Distribution Software system type, acceptance of the API licence, Availability and Rates API with Expedia Traveler Preference, Booking APIs with virtual card and Value Add Promotion support, and PCI compliance where applicable, with end-to-end certification by their EQC team; the programme runs on an annual cycle.
 
 ### 2.4 Revenue engine ("Yield")
 
@@ -94,7 +96,7 @@ Requirements observed for the direct route: Booking.com requires certification a
 - Gift vouchers and prepaid stays sold online, redeemed on folio.
 
 **Competitor analysis and dynamic pricing**
-- Rate shopping: daily and on-demand shop of a configurable comp set (3 to 10 competitors) for the next 90 to 365 days across Booking.com and Google Hotel Ads. Buy a rate-shopping data feed (OTA Insight, RateGain, Aggregate Intelligence or similar) rather than scraping, which breaches OTA terms and gets IP-blocked.
+- Rate shopping: a comp set of 3 to 10 competitors tracked for the next 90 to 365 days. Built as a framework with a provider interface from day one. Launch sources: manual entry and import of competitor rates from the property's own Booking.com extranet market insights. A licensed feed (OTA Insight, RateGain, Aggregate Intelligence or similar) is added later as one adapter. No scraping of Booking.com or Google: it breaches their terms, is blocked quickly, and would put the Booking.com connectivity partner application at risk.
 - Market position dashboard: rank versus comp set per date, price index, parity violations, comp set occupancy proxy (sold-out signals).
 - Demand signals: own pickup and pace, comp set movement, events, weather, search demand from Google Hotel Ads, day-of-week seasonality.
 - Dynamic pricing model: start with transparent rules plus comp set anchors (explainable, hoteliers trust it). Phase two adds a forecasting model (gradient boosted or similar) per property trained on own history, producing a recommended rate per room type per date with a confidence band and plain-English reasons. Modes: advise, approve, autopilot with guardrails.
@@ -195,6 +197,7 @@ Fit it to the existing Zynthio platform rather than build a parallel stack. Spec
 - **Pricing service:** rules engine evaluated nightly and on triggers; forecasting jobs run in a worker with model artefacts per property; recommendations stored with explanations.
 - **Mobile:** housekeeping module in the existing native app, offline queue with conflict resolution; a lightweight web fallback.
 - **Reporting:** nightly snapshots into a reporting schema or warehouse; materialised KPIs for dashboards.
+- **Stack:** Python with Django and Django REST Framework for Stay (models, migrations, viewsets, serializers, permissions, Celery workers), Angular feature modules in the existing front end, the existing native app for housekeeping. Integrated with Zynthio organisations, sites, users, rotas and EPOS from the first migration.
 - **Infrastructure:** run on the existing Zynthio hosting and SendGrid email, UK-hosted (data residency matters to universities), managed Postgres with point-in-time recovery, object storage for documents and photos, queue (Redis or SQS-class), scheduled jobs, observability (logs, traces, uptime), daily encrypted backups off-site (the existing Drive backup routine shows this habit already exists), 99.9 percent target with a published status page.
 
 ---
@@ -206,13 +209,13 @@ Fit it to the existing Zynthio platform rather than build a parallel stack. Spec
 | 0. Discovery and design | 1 to 4 | Workshops with 3 to 5 design-partner hotels (WithUS hotels first), domain model, UX prototypes, Channex sandbox account, Dojo pre-auth and tokenisation flows confirmed, PCI scope agreed. |
 | 1. Core PMS MVP | 5 to 20 | Rooms, rate plans, restrictions, reservations, tape chart, guest profiles, folios, Dojo payments and refunds, night audit, VAT invoices, basic reports, admin console, Rooms and Admin user guides and training mode. Run live at one design-partner hotel from week 16. |
 | 2. EPOS room charges and single ledger | 15 to 24 | Charge-to-room on tills, package redemption, events folios, EPOS to PMS reconciliation, accounting exports. |
-| 3. Channel manager via aggregator | 18 to 28 | Channex integration, mapping UI, ARI push and reservation pull, overbooking protection, booking engine with Dojo checkout, online check-in and express check-out, Google free booking links, Connect guide and channel cut-over playbook. |
+| 3. Channel manager | 18 to 32 | Own channel manager core, direct Booking.com and Expedia adapters in sandbox, iCal sync, mapping UI, ARI push and reservation pull, overbooking protection, booking engine with Dojo checkout, online check-in and express check-out, Google free booking links, Connect guide and channel cut-over playbook. |
 | 4. Housekeeping and linen app | 22 to 34 | Room status board, task generation and assignment, inspections, maintenance, lost and found, linen counts and laundry reconciliation, offline mode, Android parity. |
 | 5. Revenue engine v1 | 28 to 40 | Rules builder, promotions, vouchers, comp set rate shopping via data feed, market position dashboard, advise and approve modes. |
 | 6. Hardening and go-to-market | 34 to 44 | Pentest, Cyber Essentials Plus, migration tooling, onboarding playbook, pricing page, 10 to 20 paying properties. |
-| 7. Direct connectivity and dynamic pricing v2 | 45 to 78 | Booking.com and Expedia direct certifications, forecasting model with autopilot, metasearch and GDS as demanded. |
+| 7. Certification go-live and dynamic pricing v2 | 45 to 78 | Booking.com and Expedia production certification with the first live property, licensed rate feed adapter, forecasting model with autopilot, metasearch and GDS as demanded. |
 
-Months 1 to 10 deliver a sellable product. Months 11 to 18 remove aggregator cost and add the premium revenue tier.
+Months 1 to 10 deliver a sellable product. Months 11 to 18 complete OTA certification and add the premium revenue tier.
 
 ---
 
@@ -237,8 +240,8 @@ The OTA APIs are free to software partners; the OTAs earn commission from the ho
 | Airbnb API | Not available to new partners; reach it via the aggregator |
 | Google Hotel Ads free booking links | 0; Hotel Center account and price feed |
 | GDS via a switch (Derbysoft or similar) | Monthly fee plus per-booking fee; only when a corporate customer requires it |
-| Channex white-label aggregator | 130 USD a month platform fee plus 7 USD per connected hotel per month (6 USD at 500 plus); no setup fee, no commission; sandbox free |
-| Rate shopping data feed (Yield module) | 15 to 40 per property per month; sold on to the hotel as an add-on |
+| Optional aggregator for long-tail channels (Channex or similar) | Only if ever needed: about 130 USD a month plus 7 USD per connected hotel; not required for launch |
+| Rate shopping data feed (Yield module) | 0 at launch (manual and extranet import); a licensed feed later at 15 to 40 per property per month, sold on to the hotel as an add-on |
 | Dojo | 0 to Zynthio; hotel pays transaction fees, Zynthio earns partner revenue share |
 | Penetration test | 6k to 12k per year, from first paying hotels |
 | PCI DSS SAQ and ASV scans | 1k to 3k per year |
@@ -253,14 +256,14 @@ Cash outlay to launch the channel manager is close to zero: the Channex sandbox 
 
 | Item | 50 properties | 300 properties |
 |---|---|---|
-| Channex platform fee | 105 (130 USD) | 105 |
-| Channex per hotel property (7 USD, 6 USD at 500 plus) | 280 | 1,700 |
-| Rate shopping data feed (per property per month, 15 to 40) | 750 to 2,000 | 4,500 to 12,000 |
+| OTA connectivity (Booking.com, Expedia, Google, iCal) | 0 | 0 |
+| Optional aggregator for long-tail channels | 0 unless enabled | 0 unless enabled |
+| Rate shopping data feed (later, 15 to 40 per property) | 0 at launch, 750 to 2,000 with a feed | 0 at launch, 4,500 to 12,000 with a feed |
 | Hosting, database, storage, queues, monitoring | Existing Zynthio infrastructure; incremental 0 to 300 | Incremental 500 to 1,500 for database and storage growth |
 | Transactional email | Existing SendGrid account; 0 to 50 incremental | 100 to 300 if volume outgrows the current plan |
 | SMS and WhatsApp (guest messaging) | 50 to 150 | 400 to 900 |
 | App store fees, misc SaaS | 0 (existing developer accounts) | 100 |
-| **Total third-party cost** | **1,200 to 3,000** | **7,500 to 17,000** |
+| **Total third-party cost** | **50 to 500 at launch; 800 to 2,500 with a rate feed** | **600 to 2,800 at launch; 5,000 to 15,000 with a rate feed** |
 
 Support and engineering time is founder time at launch; budget a first support hire at around 40 properties and a second engineer at around 100.
 
@@ -282,7 +285,7 @@ Proposed per-property monthly pricing (per room, with floors):
 
 A 20-room inn on the bundle pays about 2,400 a year, under half the cost of a typical PMS, channel manager and RMS stack, while Zynthio's variable cost for that property (aggregator and rate feed) is roughly 25 to 45 a month. Gross margin on software is above 75 percent before support.
 
-With no salaried build cost, the modules are cash-positive from the first few properties: a 20-room bundle at 199 a month carries roughly 25 to 45 of variable third-party cost. Hosting and email already exist, so the only fixed overhead is the Channex platform fee and compliance; three to five properties cover it. The WithUS deal alone would cover two hotels plus the venue; the university's 18 restaurants are already EPOS revenue.
+With no salaried build cost, the modules are cash-positive from the first few properties: a 20-room bundle at 199 a month carries almost no variable third-party cost until a licensed rate feed is added. Hosting and email already exist and OTA connectivity is free, so the only fixed overhead is compliance; two or three properties cover it. The WithUS deal alone would cover two hotels plus the venue; the university's 18 restaurants are already EPOS revenue.
 
 ---
 
@@ -290,8 +293,8 @@ With no salaried build cost, the modules are cash-positive from the first few pr
 
 - **Payments and ledger correctness.** Hotel accountants will leave over a penny of variance. Mitigation: immutable journal, reconciliation reports from day one, a chartered-accountant review of the ledger design, parallel run with the incumbent system at the first hotel.
 - **Overbookings during channel sync failures.** Mitigation: outbox and retry, stop-sell cascade, synthetic monitoring that books and cancels a test room, per-channel allotment buffers configurable by the hotel.
-- **OTA programme dependency.** Airbnb has closed new partner intake; Booking.com and Expedia change criteria annually. Mitigation: aggregator first, direct second, never single-sourced.
-- **Rate shopping legality.** Scraping breaches OTA terms. Mitigation: licensed data feed only.
+- **OTA programme dependency.** Airbnb has closed new partner intake; Booking.com and Expedia change criteria annually and certification needs a live property. Mitigation: register now, build against sandboxes from day one, iCal for closed channels, aggregator adapter kept as a fallback.
+- **Rate shopping legality.** Scraping breaches OTA terms and would endanger the Booking.com partner application. Mitigation: manual and extranet-import sources now, licensed feed later, no crawling.
 - **Team bandwidth.** The founder is running sites and opening a pub. Mitigation: design partners who co-own requirements, a tech lead who owns delivery, strict phase gates.
 - **Hardware.** Hotels expect key cards, printers and terminals to just work; the Jarltech relationship covers tills and printers, and lock vendors need separate agreements.
 - **Public sector procurement.** Universities will ask for Cyber Essentials Plus, a DPA, accessibility statements and an exit plan. Build these into phase 6.
@@ -301,12 +304,12 @@ With no salaried build cost, the modules are cash-positive from the first few pr
 ## 7. Immediate next steps (next 30 days)
 
 1. Confirm the two WithUS hotels as design partners and schedule discovery workshops.
-2. Open a Channex sandbox and run ARI push and reservation pull against the Booking.com and Expedia test properties.
+2. Register on the Booking.com Connectivity and Expedia Group developer portals, obtain sandbox credentials and run the first ARI push and reservation pull against their test properties.
 3. Confirm with Dojo: pre-authorisation, incremental auth, capture, tokenised card on file and pay-by-link availability on the partner API, and the PCI scope they certify.
-4. Shortlist two rate-shopping data providers and request per-property pricing.
+4. Build the comp-set framework with manual and extranet-import sources; shortlist licensed providers for later.
 5. Write the domain model for Inventory, Reservations and Ledger, and get it reviewed by an accountant who has run hotel books.
-6. Open the Channex sandbox and the Dojo partner API sandbox and build the first vertical slice (room type, rate, availability, one booking pulled and paid) within the first fortnight.
-7. Register for the Booking.com and Expedia connectivity developer portals now so the direct route clock starts.
+6. Using the Dojo partner API sandbox and the OTA sandboxes, build the first vertical slice (room type, rate, availability, one booking pulled and paid) within the first fortnight.
+7. Confirm the Zynthio backend framework and set up the Stay Django apps and Angular feature modules against the existing organisation, site and user models.
 
 ---
 

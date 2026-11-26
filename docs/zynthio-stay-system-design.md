@@ -28,7 +28,7 @@ Modular monolith on the existing Zynthio backend, split into bounded contexts wi
 | Reservations | Booking lifecycle, assignment, groups and blocks, guest profiles, companies and agents | Inventory, Folio, Housekeeping, Messaging |
 | Folio and Ledger | Folios, postings, journal, taxes, invoices, credit notes, night audit, AR | Payments, EPOS, Accounting adapters |
 | Payments | Dojo adapter, tokens, pre-auth, capture, refunds, pay-by-link, virtual cards, reconciliation | Folio, Booking Engine, Front Desk |
-| Channel Sync | ARI outbox, channel adapters (Channex now, Booking.com and Expedia direct later), mapping, inbound reservations, health | Inventory, Reservations, Pricing |
+| Channel Sync | Own channel manager: ARI outbox, direct Booking.com and Expedia adapters, Google Hotel Ads feed, iCal sync, optional aggregator adapter, mapping, inbound reservations, health | Inventory, Reservations, Pricing |
 | Booking Engine | Public availability search, rate display, checkout, promo codes, upsells, metasearch feed | Inventory, Pricing, Payments, Reservations |
 | Pricing (Yield) | Rules engine, promotions, comp set data ingestion, forecasting, recommendations | Inventory, Channel Sync, Reporting |
 | Housekeeping and Assets | Room status, tasks, inspections, maintenance, lost and found, linen and stock counts | Reservations, Rota, Staff app |
@@ -38,6 +38,8 @@ Modular monolith on the existing Zynthio backend, split into bounded contexts wi
 | Reporting | Nightly snapshots, KPI materialisation, exports, scheduled report delivery | All modules, existing KPI dashboard |
 | Admin Console | Configuration UI for all of the above, audit log, feature flags, import and export, billing | All modules |
 | Integrations Hub | Accounting, door locks, Wi-Fi, TV, review platforms, webhooks, public API | Folio, Reservations, Guest Journey |
+
+**Stack:** Django and Django REST Framework apps for each bounded context (models with migrations, viewsets as controllers, serializers, DRF permissions, Celery workers and beat for jobs), Angular feature modules in the existing Zynthio front end, the existing native app for housekeeping. Shared Postgres with the existing Zynthio schema; Stay tables reference Zynthio organisation, site and user rows by foreign key from the first migration.
 
 **Runtime pieces:** web app (existing), native staff app (existing, iOS live, Android in progress) with the housekeeping module added, public booking engine and guest web app (new, server-rendered and fast on phones), background workers (ARI pushes, night audit, pricing, snapshots), scheduler, Postgres with row-level tenancy, Redis for queues and caches, object storage for documents and photos, SendGrid for email.
 
@@ -117,15 +119,16 @@ Nightly and on triggers (pickup threshold, comp set move, event added): gather o
 
 | Integration | Direction | Protocol | Notes |
 |---|---|---|---|
-| Channex (aggregator) | Both | REST plus webhooks | ARI push, reservations pull, mapping API; white-label |
-| Booking.com Connectivity (phase 7) | Both | REST and XML endpoints | Rates and availability, reservations, PII review |
-| Expedia Group (phase 7) | Both | REST | Product, AR, booking retrieval and notification, virtual cards |
+| Booking.com Connectivity | Both | REST and XML endpoints | Rates and availability, reservations, content; sandbox from phase 3, production after certification |
+| Expedia Group Lodging Connectivity | Both | REST | Product, availability and rates, booking retrieval and notification, virtual cards; sandbox from phase 3 |
+| iCal channels (Airbnb, Vrbo) | Both | iCal import and export | Availability only; bookings imported from notifications |
+| Aggregator (optional, Channex or similar) | Both | REST plus webhooks | Long-tail channels only if a customer needs them |
 | Google Hotel Ads | Out | Price feed and landing page | Free booking links first |
 | Dojo | Both | Partner API and terminal integration | Pre-auth, capture, refund, tokens, pay-by-link, settlement files |
 | Zynthio EPOS | Both | Internal API and events | Room charge, package redemption, reconciliation |
 | Accounting (Xero, Sage, QuickBooks) | Out | Vendor APIs or CSV | Daily journal summary by GL account |
 | Door locks (Salto, Assa Abloy, dormakaba, Onity) | Out | Vendor SDK or cloud API | Key encoding and mobile keys |
-| Rate shopping feed | In | Vendor API | Daily and on-demand comp set rates |
+| Rate shopping sources | In | Provider interface: manual entry, extranet import, licensed vendor API later | Daily and on-demand comp set rates |
 | SendGrid | Out | API | Templates rendered by Zynthio, SendGrid delivers; webhooks for bounces |
 | SMS and WhatsApp Business | Out | Vendor API | Opt-in managed per guest |
 | Public API and webhooks | Both | REST, API keys, HMAC-signed webhooks | For customers and partners |
@@ -135,7 +138,7 @@ Nightly and on triggers (pickup threshold, comp set move, event added): gather o
 ## 6. Multi-tenancy, security and compliance
 
 - Row-level security keyed on org_id and property_id; every query scoped by the authenticated principal.
-- Roles: owner, group admin, property manager, front desk, night auditor, housekeeping supervisor, housekeeper, maintenance, revenue manager, finance, read-only, API client. Permissions are granular and assignable per property.
+- Roles: Zynthio super admin (platform level, above all organisations: manages tenants, entitlements, feature flags, support impersonation with consent, and enables optional modules such as owner accounting), owner, group admin, property manager, front desk, night auditor, housekeeping supervisor, housekeeper, maintenance, revenue manager, finance, read-only, API client. Permissions are granular and assignable per property.
 - Secrets in a vault; card data never touches Zynthio servers except as gateway tokens; OTA virtual card details encrypted at rest with field-level keys and purged after capture.
 - Audit log on all configuration and financial actions, exportable per property.
 - GDPR tooling: retention schedules, erasure requests that anonymise profiles while preserving the ledger, consent records, data export.
@@ -238,7 +241,7 @@ Nightly and on triggers (pickup threshold, comp set move, event added): gather o
 
 | Function | What it does |
 |---|---|
-| Channel connection wizard | Connects a property to each OTA through the aggregator with guided steps |
+| Channel connection wizard | Connects a property to each OTA directly (API credentials or iCal URLs) with guided steps and a test push |
 | Mapping manager | Maps room types and rate plans to channel products, detects unmapped items, sets per-channel markups |
 | ARI push | Sends availability, rates and restrictions on every change, with retries and a nightly full refresh |
 | Reservation delivery | Receives new, modified and cancelled OTA bookings and creates or updates reservations automatically |
@@ -249,7 +252,7 @@ Nightly and on triggers (pickup threshold, comp set move, event added): gather o
 | Booking engine | Mobile-first direct booking site per property with availability search, rate display, upsells, promo codes and Dojo checkout |
 | Rate comparison widget | Shows direct versus OTA prices on the booking engine |
 | Metasearch feed | Publishes prices to Google Hotel Ads free booking links, later Trivago and TripAdvisor |
-| Direct connections (phase 7) | Native Booking.com and Expedia adapters replacing the aggregator for those channels |
+| Channel adapters | Native Booking.com and Expedia adapters, Google Hotel Ads feed, iCal sync; optional aggregator adapter for long-tail channels |
 | GDS (on demand) | Connects to Amadeus, Sabre and Travelport via a switch for corporate business |
 
 ### 7.7 Revenue engine (Yield)
@@ -264,7 +267,7 @@ Nightly and on triggers (pickup threshold, comp set move, event added): gather o
 | Upsells and add-ons | Sells extras at booking, check-in and in stay with inventory limits |
 | Gift vouchers | Sells and redeems vouchers against folios |
 | Channel promotions | Mirrors eligible deals to OTA promotion programmes |
-| Rate shopping | Pulls competitor rates daily from a licensed feed for a configured comp set |
+| Rate shopping | Collects competitor rates for a configured comp set from manual entry, extranet imports and, later, a licensed feed through one provider interface |
 | Market position dashboard | Ranks the property against competitors by date, with parity and sold-out signals |
 | Demand signals | Combines pickup, pace, comp set movement, events and search demand into a daily demand index |
 | Recommendations | Produces a suggested rate per room type per date with confidence and reasons |
@@ -521,7 +524,7 @@ How a price is formed for a given room type, rate plan, date and party.
 
 | Setting | Type | Behaviour |
 |---|---|---|
-| Channel account | channel, property id on channel, credentials via aggregator, status | One per channel per property |
+| Channel account | channel, property id on channel, credentials (direct API keys or iCal URLs, stored encrypted), status | One per channel per property |
 | Room type mapping | Zynthio room type to channel room id, with occupancy check | Warns if channel max occupancy differs from Zynthio max |
 | Rate plan mapping | Zynthio rate plan to channel rate id, markup percent or amount, rounding | Markups apply at push |
 | Occupancy mapping | how per-occupancy and child prices are flattened for the channel | Per channel capability |
@@ -535,7 +538,7 @@ How a price is formed for a given room type, rate plan, date and party.
 
 | Setting | Type | Behaviour |
 |---|---|---|
-| Comp set | list of competitor property ids on the rate feed, weight | Market position and recommendations |
+| Comp set | list of competitors with name, source (manual, extranet import, licensed feed), identifier per source, weight | Market position and recommendations |
 | Price floors and ceilings | per room type, per season | Guardrails |
 | Max daily change | percent | Guardrail |
 | Mode | advise, approve, autopilot | Per property, with per-rate-plan override |
@@ -647,6 +650,32 @@ Every fee is a configurable **charge item** with a charge code behind it, so it 
 | Night audit | Auto-posts no-shows, facility fees and unpaid late check-outs; lists fees awaiting approval |
 | Channels | Mandatory fees declared to OTAs that require fee disclosure; optional fees excluded from pushed rates |
 | Reports | Fee revenue by item, waiver rate and value by user, dispute rate, incident recovery |
+
+### 8.16 Property onboarding wizard
+
+A new property is created through a wizard, not a blank admin form. Every step saves and can be revisited; the property cannot go live until required steps are complete. The super admin or an organisation admin starts it.
+
+| Step | Captures | Required to go live |
+|---|---|---|
+| 1. Property basics | Legal and trading names, address, phone, email, website, time zone, currency, star rating, property type, link to existing Zynthio site or create one | Yes |
+| 2. Legal and tax | Company registration number, VAT number and VAT registration status, invoice numbering prefix and starting number, credit note prefix, legal footer text, visitor levy applicability, 28-day VAT rule on or off | Yes |
+| 3. Times and audit | Check-in and check-out times, audit mode (automatic roll or manual), audit time, business date mode | Yes |
+| 4. Occupancy defaults | Child age brackets, count infants, max cots, default supplements | Yes |
+| 5. Room types and rooms | Guided entry or CSV import of room types with occupancy and beds, then rooms per type; validation of totals | Yes |
+| 6. Rate plans and prices | Create BAR plus at least one derived plan; seasonal price entry or CSV import; restrictions | Yes |
+| 7. Policies | Cancellation, deposit, guarantee, no-show, children, pets, house rules; templates offered | Yes |
+| 8. Taxes and charge codes | VAT rules confirmed, standard charge codes created from a template, GL mapping optional | Yes |
+| 9. Payments | Dojo merchant connection and terminal pairing, pay-by-link test, card-on-file consent text | Yes |
+| 10. Fees and extras | Choose from a template list (early check-in, late check-out, parking, pet, cot) and set prices | No |
+| 11. Housekeeping | Task types and credits from template, sections, linen items and pars | No |
+| 12. Channels | Booking.com and Expedia property ids and credentials, iCal URLs, mapping with a test push | No, but recommended before go-live |
+| 13. Booking engine | Brand colours, logo, domain or subdomain, languages, currencies, terms link, analytics ids | No |
+| 14. Messaging | Sender identity, template review, message schedule from template | No |
+| 15. Users | Invite staff by role, link existing Zynthio employees | Yes, at least one property manager |
+| 16. Data migration | Import future reservations, guests and companies from the incumbent PMS via CSV templates; parallel-run checklist | No |
+| 17. Go-live check | Automated checklist: required steps complete, test booking through the booking engine, test payment and refund, test ARI push, fire sheet renders, audit runs on the training copy | Yes |
+
+The wizard also creates the training-mode copy of the property on completion.
 
 ---
 
@@ -1218,6 +1247,8 @@ Format: ID, Given, When, Then. Every test is automated at the service layer unle
 | CH-10 | Channel markup plus 15 percent | Push | Pushed prices equal Zynthio price times 1.15 rounded per rule |
 | CH-11 | Allotment of 3 rooms for channel X on D | 3 sold via X | X shows 0 while other channels still show remaining pool |
 | CH-12 | Synthetic monitor | Hourly | Test booking and cancellation round-trips through a test channel; failure alerts |
+| CH-13 | iCal channel configured | Room blocked in PMS on D | Exported iCal shows D blocked within 5 minutes; imported iCal block on E reduces availability on E |
+| CH-14 | Booking.com sandbox certification suite | Run | All certification test cases pass and the report is stored |
 
 ### 14.8 Revenue engine
 

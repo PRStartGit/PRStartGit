@@ -1016,3 +1016,317 @@ Vendors reviewed (from their own sites and review listings, November 2026): Mews
 - **Pricing that explains itself.** Every automated price change carries plain-English reasons; autopilot is opt-in behind guardrails.
 - **Priced for pubs with rooms and small independents** at a per-room rate with low minimums, where competitors' minimums start at a few hundred pounds a month once payments and channel manager are added.
 - **UK first.** VAT 28-day rule, visitor levies, Immigration (Hotel Records) Order registration fields, tronc, Cyber Essentials Plus for public-sector buyers, Dojo rates.
+
+---
+
+## 13. Booking engine search algorithm
+
+The same algorithm serves the public booking engine, the guest portal (modify booking), the front desk quick book, the channel ARI push (which precomputes the per-occupancy table for each room type, rate plan and date) and the public availability API. One implementation, several callers.
+
+### 13.1 Inputs
+
+| Input | Notes |
+|---|---|
+| property_id (or list for group search) | |
+| arrival, departure | Dates in property time zone; nights = departure minus arrival; 0 nights means day use and is only allowed if the property enables it |
+| parties | One or more rooms requested, each with adults, children with ages, infants, requested extra beds and cots |
+| promo_code, member flag, company or agent code | Unlock private rate plans |
+| channel context | booking engine, guest portal, desk, API client; decides which rate plans are visible and which markups apply |
+| currency and language | Display only |
+| flexible dates | Optional plus or minus N days for a calendar view |
+
+### 13.2 Steps
+
+1. **Validate the request.** Arrival not in the past (desk may override for same-day late night), nights within property max, each party within global caps (adults 1 to 10, children 0 to 10). Reject with a specific error code.
+2. **Build the date set.** Stay nights = each night from arrival to departure minus one. Fetch for the property: room types (active, sellable in this context), rate plans (active, sellable in this context, matching codes), DailyRate rows, Restriction rows, Availability rows for the stay nights, policies and tax rules in force on the arrival date, promotions active on the sell date.
+3. **Filter room types by occupancy per party.** For each party and room type, apply the pricing matrix validation (8.4): adults <= max adults; children <= max children; adults plus children <= max total plus allowed extra beds; adults >= min occupancy; infants <= max cots when the property does not count infants. Children are counted by the applicable bracket; children above the oldest bracket count as adults. Keep room types that pass. If none pass for a party, compute a suggestion: the smallest set of room types that can hold the party split across rooms (greedy by capacity), and return it as "split your party".
+4. **Filter by availability.** For each surviving room type, availability on every stay night must be >= the number of parties assigned to that room type in the current combination. Virtual room types use the minimum of their components. Shared inventory groups reduce together. Allotments apply when the channel context has one. Availability includes the configured overbooking allowance only for channels where the property allows it. Rooms out of order are already excluded; rooms out of service are available for sale.
+5. **Filter rate plans per room type.** Rate plan sells this room type; sell dates include today; stay dates include every night; booking window satisfied (lead time between min and max days); length of stay within plan min and max; weekday sellable for the arrival day (or for every night, configurable); channel context allowed; private plan unlocked by code or membership; company or agent plan attached to the supplied code.
+6. **Apply restrictions.** For each room type and rate plan: no stop sell on any night at room-type level or rate-plan level; closed to arrival not set on the arrival night; closed to departure not set on the departure date; min stay arrival satisfied by the arrival night's value; min stay through satisfied by the maximum of all nights' values; max stay satisfied by the minimum of all nights' values; release period: arrival must be at least N days away.
+7. **Price each candidate.** For each room type, rate plan and party:
+   - For each night, resolve the DailyRate (explicit row, else derived from the parent plan, else the plan has no price for that night and the candidate is dropped).
+   - Determine the per-occupancy price: explicit price for the adult count if present, else base price for standard occupancy plus adult supplement times (adults minus standard), with single-use discount when adults are below standard.
+   - Add child supplements per bracket per child, honouring "free up to N".
+   - Add extra bed and cot supplements as separate lines.
+   - Apply length-of-stay band pricing if the plan defines it.
+   - Apply package components: inclusive components do not change the price but are recorded; priced components are added per the component rules.
+   - Apply promotions in configured order: percentage then fixed, stackable or exclusive, with caps; record the applied promotion.
+   - Apply channel markup for the channel context (booking engine normally 0 or a direct discount).
+   - Apply tax rules per charge code: room, supplements, packages and mandatory fees each carry their own tax; inclusive or exclusive display per property setting.
+   - Add mandatory fees from the fee engine (facility fee, visitor levy) as disclosed lines.
+   - Round per the property rule at the line level, then sum.
+   - Produce: nightly breakdown, total, taxes, fees, deposit due now (from the deposit policy), cancellation text (from the pinned policy), payment timing, inclusions.
+8. **Rank.** Default order: rate plan display order, then total ascending within a room type; room types by display order. Options: cheapest first, recommended (configurable weighting of margin and conversion), by room type. Mark the cheapest flexible and cheapest non-refundable option per room type for the comparison UI.
+9. **Upsell suggestions.** For each room type shown, compute the next room type up by display order that is available and show the price difference. Attach eligible add-ons from the fee engine with inventory checks.
+10. **Hold.** When the guest proceeds, create a soft hold on the chosen room type and rate plan for the stay nights for a configurable number of minutes (default 15), decrementing availability for other searches. Holds expire automatically and are not pushed to channels unless the property enables hold pushes.
+11. **Re-price at checkout.** Re-run steps 5 to 7 for the chosen candidate immediately before payment; if the total changed, show the difference and ask the guest to confirm. Never charge a stale price.
+12. **Commit.** Create the reservation with pinned policy versions, nightly prices and components, guest profile, payment record and promotion usage, release the hold, and emit reservation.created, which triggers the ARI delta push.
+
+### 13.3 Flexible dates and calendar
+
+For plus or minus N days, run steps 2 to 7 once per candidate arrival date with the same nights, in parallel, and return the cheapest available total per date for a calendar strip. Cache per property, nights, party signature and date for 60 seconds; invalidate on any ARI change for the affected dates.
+
+### 13.4 Multi-room and group search
+
+For several parties, compute per-party candidate lists, then assemble combinations where availability per room type per night covers the count of parties assigned to it. Cap combinations shown (for example the three cheapest and the one with all parties in the same room type). Groups above a configurable size (default 8 rooms) are routed to an enquiry form that feeds the events pipeline.
+
+### 13.5 Performance targets
+
+| Measure | Target |
+|---|---|
+| Single search, 20 room types, 10 rate plans, 7 nights | under 300 ms server time |
+| Calendar strip of 15 dates | under 800 ms |
+| Availability cache consistency after a booking | under 2 seconds to channels, immediate on the booking engine |
+| Hold expiry | within 60 seconds of the deadline |
+
+### 13.6 Edge rules
+
+- A rate plan that is derived from a closed parent is closed.
+- A child whose age equals the upper bound of a bracket belongs to that bracket.
+- Infants never consume availability or a bed space unless the property counts them.
+- When the departure date is closed to departure but the arrival night is closed to arrival for the next day, the stay is still valid if no night in the stay is stop-sold.
+- Day use (0 nights) prices from a dedicated day-use rate plan and creates a same-day housekeeping task.
+- Prices shown in a foreign currency carry the rate and timestamp used; the reservation stores GBP.
+- A promo code that fails validation returns a specific reason (expired, not valid for these dates, minimum stay not met, usage cap reached) rather than silently ignoring it.
+- The desk context can bypass booking window, weekday and release rules with an override permission, and the override is logged.
+
+---
+
+## 14. Acceptance tests
+
+Format: ID, Given, When, Then. Every test is automated at the service layer unless marked UI. A module is accepted for release when all its tests pass on a seeded test property and a hotelier from a design-partner property has signed off the UI tests.
+
+### 14.1 Inventory and rates
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| INV-01 | A room type with 10 rooms, 1 out of order on date D | Availability is read for D | 9 available |
+| INV-02 | A room type with 10 rooms and overbooking allowance 1 for the booking engine | Availability is read for the booking engine | 11 available; for a channel without allowance, 10 |
+| INV-03 | A virtual family suite made of rooms 101 and 102 | 101 is sold on D | Family suite availability on D is 0 |
+| INV-04 | Twin and double share one inventory group of 5 rooms | 3 twins sold on D | Double availability on D is 2 |
+| INV-05 | Rate plan B derived at minus 10 percent from plan A | A's price changes from 100 to 120 on D | B's price on D becomes 108 within one second and an ARI delta for B is queued |
+| INV-06 | Stop sell set on room type on D at room-type level | Any rate plan is searched including D | No results for that room type |
+| INV-07 | Min stay through 3 on D | Search for 2 nights including D | Rejected; search for 3 nights including D | Accepted |
+| INV-08 | A room is set OOS (not OOO) | Availability read | Unchanged; auto-assign skips the room |
+| INV-09 | Nightly verification job runs | Availability has drifted by a manual DB change | Drift is detected, corrected and alerted |
+| INV-10 | Bulk rate edit for Fridays and Saturdays in July | Applied | Only those dates change; audit log records before and after values |
+
+### 14.2 Occupancy and pricing
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| PRC-01 | Room type standard occupancy 2, max adults 3, adult supplement 20, base 100 | Priced for 3 adults | 120 per night |
+| PRC-02 | Same, single-use discount 15 | Priced for 1 adult | 85 |
+| PRC-03 | Child brackets 0 to 2 infant, 3 to 12 child; child supplement 15; free up to 1 child | 2 adults, 2 children aged 5 and 9 | 100 plus 15 = 115 |
+| PRC-04 | Max children 1 | 2 adults and 2 children aged 5 and 9 | Room type excluded; split suggestion returned |
+| PRC-05 | Child aged 12 with bracket 3 to 12 | Priced | Counted as a child, not an adult |
+| PRC-06 | Child aged 13 | Priced | Counted as an adult |
+| PRC-07 | Infant with property not counting infants, max cots 1 | 2 adults and 1 infant in a max total 2 room | Allowed; cot task created; cot fee posted if configured |
+| PRC-08 | Explicit per-occupancy prices 1 adult 90, 2 adults 100, 3 adults 130 | Priced for 3 adults | 130, supplements ignored |
+| PRC-09 | Per-person pricing mode, 25 per person | 4 persons | 100 |
+| PRC-10 | VAT 20 percent exclusive display, room 100, visitor levy 2 per night | Priced for 1 night | Room 100, VAT 20, levy 2, total 122, with lines itemised |
+| PRC-11 | Stay of 30 nights with the 28-day VAT rule enabled | Priced | Nights 29 and 30 taxed on the reduced value per HMRC rule and shown on the invoice |
+| PRC-12 | Rounding rule nearest 1 | Price computes to 107.4 | 107 |
+| PRC-13 | Channel push for Booking.com for a room type with max adults 3 | ARI generated | Prices for 1, 2 and 3 adults supplied; children flattened per channel capability |
+
+### 14.3 Booking engine search
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| BE-01 | Arrival yesterday | Search | Error "arrival in the past" |
+| BE-02 | Plan with booking window min 2 days | Search for tomorrow | Plan absent; other plans present |
+| BE-03 | Plan sellable Fridays only | Search arriving Saturday | Plan absent |
+| BE-04 | Promo code expired | Search with the code | Results without promo plus reason "code expired" |
+| BE-05 | Promo 10 percent stackable with early bird 5 percent fixed order percent then fixed | Priced | Applied in that order and recorded on the quote |
+| BE-06 | Two parties, 2 adults each, one room type with 1 room left | Search | Combination offers two different room types or a split; never two of the same |
+| BE-07 | Guest holds a room then waits past the hold time | Hold expires | Availability restored; checkout re-price shows new total if changed |
+| BE-08 | Price rises between search and payment | Checkout | Guest sees old and new total and must confirm; no charge at stale price |
+| BE-09 | Flexible dates plus or minus 3 | Search | Seven totals returned; each equals a direct search for that date |
+| BE-10 | Group of 9 rooms requested | Search | Redirected to enquiry; enquiry appears in events pipeline |
+| BE-11 | Property displays prices inclusive of VAT | Search | Totals inclusive; breakdown still shows VAT amount |
+| BE-12 | Foreign currency display EUR | Search | EUR shown with rate and time; reservation stored in GBP |
+| BE-13 | Search completes | Timing | Under 300 ms server time for the reference dataset |
+| BE-14 | Abandoned at step 2 with email captured | 60 minutes pass | Recovery email sent once with the quoted price and link |
+
+### 14.4 Reservations and front desk
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| RES-01 | A confirmed reservation | Check-in | Status checked in, room status occupied, key issued event emitted, pre-auth taken if policy requires |
+| RES-02 | Room is dirty | Attempt check-in without override | Blocked with message; with override permission, allowed and logged |
+| RES-03 | Reservation modified from 2 to 3 nights | Saved | Night 3 priced on the pinned rate plan rules, availability decremented, ARI delta queued, housekeeping tasks regenerated |
+| RES-04 | Room move from 101 to 205 mid-stay | Confirmed | Folio keeps postings, new key issued, 101 set dirty, 205 occupied, both housekeeping tasks updated |
+| RES-05 | Guest departs one night early with early departure fee policy | Checked out | Unused night removed, fee posted per policy, availability restored |
+| RES-06 | Walk-in at 23:30 | Quick book for tonight | Allowed; business date logic assigns tonight correctly |
+| RES-07 | Cancel inside penalty window | Cancelled | Penalty computed from pinned policy, posted, refund of remainder issued, channel notified if OTA |
+| RES-08 | No-show at audit with first-night policy | Audit runs | Status no-show, first night charged on card on file, room released |
+| RES-09 | Two guest profiles with same email | Merge | One profile, stay history combined, consents preserved as most restrictive, audit logged |
+| RES-10 | Blacklisted guest books online | Reservation created | Flag raised to front desk; booking not auto-blocked unless property setting says so |
+| RES-11 | Waitlist entry for a sold-out night | A cancellation frees a room | Waitlist guest notified within one minute |
+| RES-12 | Group rooming list of 20 uploaded | Imported | 20 reservations in the block, errors listed per row, master account linked |
+| RES-13 | Trace due today unactioned at 18:00 | Escalation time | Escalated to manager |
+| RES-14 UI | Arrivals board | Tap check-in on a pre-checked-in guest | Completes in one tap with no further data entry |
+
+### 14.5 Folio, payments and ledger
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| FIN-01 | Any posting | Created | A balanced journal entry exists; sum of debits equals credits |
+| FIN-02 | A posting | Edit attempted | Rejected; only a reversing posting with reason is allowed |
+| FIN-03 | Room 100 plus VAT, night audit | Audit runs | Room and tax posted to every in-house folio once; re-running audit does not double post |
+| FIN-04 | Folio with guest and company windows | Room to company, extras to guest | Two invoices with correct payers and VAT, sequential numbers |
+| FIN-05 | Pre-auth 200 at check-in, folio reaches 250 | Incremental auth rule | Auth increased or staff alerted per configuration |
+| FIN-06 | Check-out with card on file | Capture | Captured amount equals balance; folio closes at zero; invoice emailed |
+| FIN-07 | Refund 30 on a 100 payment | Refund | Gateway refund 30, reversing posting, credit note referencing the invoice |
+| FIN-08 | Original card expired | Refund | Alternative method with manager approval; audit shows approver |
+| FIN-09 | OTA virtual card valid from check-in date | Charge attempted before | Blocked; on the date, charged automatically |
+| FIN-10 | Deposit policy 50 percent at booking | Booking engine checkout | Deposit collected; deposit ledger shows liability; applied to folio at check-in |
+| FIN-11 | Dojo settlement file imported | Reconciliation | Every payment matched or listed as exception with reason |
+| FIN-12 | Company invoice unpaid 45 days | Debtors report | Appears in 31 to 60 ageing bucket; statement generated |
+| FIN-13 | Daily GL export | Run | Totals by account equal the trial balance for the day |
+| FIN-14 | Night audit pre-check finds an unposted EPOS check | Audit | Audit held with the exception listed; auditor resolves; audit completes |
+| FIN-15 | Property with continuous audit enabled | Midnight passes | Business date rolls, postings run, audit pack produced, exceptions queued, no manual step |
+| FIN-16 | Invoice sequence | Two invoices created concurrently | Distinct consecutive numbers, no gaps |
+| FIN-17 | Cash drawer shift close | Count differs from system | Variance recorded with mandatory reason |
+
+### 14.6 EPOS bridge
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| POS-01 | In-house guest with room charge allowed | Till posts 24.50 to room 101 | Posting on folio with outlet, server, items and tax; journal balanced; receipt shows room |
+| POS-02 | Guest checked out 10 minutes ago | Till searches room 101 | Not offered; previous guest cannot be charged |
+| POS-03 | Credit limit 100, balance 90 | Till posts 24.50 | Blocked with message; manager override allowed and logged |
+| POS-04 | Breakfast included package | Till redeems breakfast for 2 | Zero charge, redemption recorded, third breakfast charged |
+| POS-05 | Room charge voided on till | Void | Reversing posting on folio, approval recorded |
+| POS-06 | End of day | Reconciliation | EPOS room charge total equals PMS postings from EPOS; differences listed |
+| POS-07 | Event tab by event code | Till closes to event | Posts to the event master account window configured |
+| POS-08 | Till offline for 10 minutes | Room charge taken offline | Queued and posted when back online; duplicate protection by idempotency key |
+
+### 14.7 Channel manager
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| CH-01 | Rate change on D | Saved | ARI delta in outbox within 1 second; pushed and acknowledged within 60 seconds; health dashboard updated |
+| CH-02 | Channel returns 500 | Push | Retried with backoff up to the limit, then dead-lettered and alerted; no duplicate pushes |
+| CH-03 | Inbound OTA booking webhook | Received | Signature verified, raw stored, reservation created with mapped room type and plan, policies pinned, virtual card tokenised, acknowledged within SLA |
+| CH-04 | Same webhook delivered twice | Received | One reservation; second acknowledged as duplicate |
+| CH-05 | Inbound booking for an unmapped rate | Received | Exceptions queue entry; fix maps the rate and completes the booking |
+| CH-06 | Last room sold on D | Sold | Stop sell pushed to all channels for D within 60 seconds |
+| CH-07 | OTA modification changes dates | Received | Reservation updated, availability adjusted on both old and new dates, ARI deltas queued |
+| CH-08 | OTA cancellation | Received | Reservation cancelled, penalty per OTA policy mapping, availability restored |
+| CH-09 | Nightly full refresh | Runs | Complete 365-day ARI pushed; drift report lists any corrected differences |
+| CH-10 | Channel markup plus 15 percent | Push | Pushed prices equal Zynthio price times 1.15 rounded per rule |
+| CH-11 | Allotment of 3 rooms for channel X on D | 3 sold via X | X shows 0 while other channels still show remaining pool |
+| CH-12 | Synthetic monitor | Hourly | Test booking and cancellation round-trips through a test channel; failure alerts |
+
+### 14.8 Revenue engine
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| REV-01 | Rule: occupancy over 80 percent raises BAR 10 percent | Occupancy crosses 80 on D | Recommendation created with reason text; in autopilot, rate applied within guardrails and ARI queued |
+| REV-02 | Ceiling 250 | Rule would set 270 | Capped at 250, reason notes the cap |
+| REV-03 | Max daily change 15 percent | Two rules together imply 25 percent | Capped at 15 |
+| REV-04 | Approve mode | Recommendation created | Nothing changes until approved; approval applies it and logs the approver |
+| REV-05 | Comp set feed down | Nightly run | Rules depending on comp set skipped with a visible notice; others run |
+| REV-06 | Promo capped at 50 uses | 51st booking | Code rejected with reason |
+| REV-07 | Event added with high demand tag | Rules run | Event rules fire for the dates; explanation names the event |
+| REV-08 | Displacement analysis for a 20-room block | Run | Shows forgone transient revenue using forecast and pace |
+
+### 14.9 Housekeeping and linen
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| HK-01 | Check-out at 10:00 | Processed | Room dirty; departure clean task created with credits and priority by next arrival ETA |
+| HK-02 | Stay-over on day 3 with linen change every 3 nights | Night audit | Stay-over task with linen change flag |
+| HK-03 | Housekeeper offline in corridor | Completes two rooms | Status updates queue and sync on reconnect with correct timestamps |
+| HK-04 | Supervisor fails inspection with photo | Saved | Room back to dirty, task reassigned, fail reason reported |
+| HK-05 | Rota shows 3 housekeepers on shift | Assignment runs | Tasks distributed only to those 3, balanced by credits within 10 percent |
+| HK-06 | Front desk occupied, housekeeper reports vacant | Saved | Discrepancy on room status report; alert to front desk |
+| HK-07 | Linen count: issued 40, collected 38, returned 37 | Saved | Variances computed; shrinkage report updated; par shortfall alert if below par |
+| HK-08 | Laundry delivery note 37 returned, invoice 40 | Reconciliation | Mismatch flagged for finance |
+| HK-09 | Missing robe flagged at departure inspection | Saved | Unreturned item fee priced from catalogue, approval requested, guest notified per settings |
+| HK-10 | Maintenance ticket sets room OOO for 2 days | Saved | Availability reduced for those dates, ARI pushed, tasks for the room suspended |
+
+### 14.10 Guest journey
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| GJ-01 | Reservation 48 hours before arrival with schedule set to 48 hours | Scheduler runs | Online check-in message sent once on the right channel; not sent for cancelled reservations |
+| GJ-02 | Guest completes online check-in with 2 names, ID, card, signature | Submitted | Reservation ready, registration cards stored for both guests, pre-auth taken, room pre-assigned if clean, fire sheet shows both names |
+| GJ-03 | Non-UK guest omits passport details | Submitted | Blocked with field-level message per property rules |
+| GJ-04 | Express check-out at 07:00 | Guest confirms | Balance captured, invoice emailed, room dirty, departure task created |
+| GJ-05 | Guest disputes a 12 minibar line | Dispute | Ticket to front desk; line flagged; invoice held or issued per setting |
+| GJ-06 | Guest requests late check-out 13:00 with fee band 10 | Request | Availability checked; fee shown; on accept, posted and housekeeping deadline moved |
+| GJ-07 | Guest with marketing consent withdrawn | Campaign send | Excluded |
+| GJ-08 | Unified inbox receives Booking.com message | Received | Thread attached to reservation; reply from inbox delivered via the channel |
+| GJ-09 | AI assistant asked about refund | Query | Escalated to staff; no answer given on payment topics |
+| GJ-10 | AI assistant asked check-in time | Query | Answers from property knowledge base in the guest's language; logged |
+
+### 14.11 Extra charges and damages
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| FEE-01 | Late check-out bands 11 to 13 fee 10, 13 to 15 fee 20, grace 15 minutes | Guest departs 11:10 | No fee; departs 11:20 | 10 posted automatically |
+| FEE-02 | Fee requires approval | Housekeeper flags smoking | Fee pending; manager approves; posted; guest notified with photos |
+| FEE-03 | Guest consent required for post-departure charges | Charge attempted without consent record | Blocked |
+| FEE-04 | Damage 180, approval threshold 100 | Created | Requires manager approval; evidence attached; posts after approval; dispute window opens |
+| FEE-05 | Card surcharge item | Property in UK, consumer card | Item cannot be enabled; message explains |
+| FEE-06 | Waiver of a fee | Done | Reversing posting with reason; waiver report shows user |
+| FEE-07 | Parking cap 10 bays | 11th booking for D | Offered as unavailable |
+
+### 14.12 Events
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| EV-01 | Ballroom combinable into A and B | A provisionally held 10:00 to 14:00 | Ballroom whole unavailable in that window plus setup buffers; B still available |
+| EV-02 | Hold with release date | Date passes without decision | Reminder sent 48 hours before; auto-release or escalation per setting |
+| EV-03 | Contract signed with deposit 25 percent | Signed | Payment schedule created; first pay-by-link sent; space status confirmed |
+| EV-04 | Function sheet changed after lock date | Saved | New version, delta highlighted, change notice with cost impact, departments notified |
+| EV-05 | 24-hour delegate package for 30 | Confirmed | 30 bedroom reservations created in the block, components posted to departments correctly |
+| EV-06 | Pre-orders with 3 allergens | Submitted | Allergen matrix per table generated; kitchen production view updated |
+| EV-07 | Bar tab by event code on till | Closed | Posts to master account window for beverage |
+| EV-08 | Final numbers 28 against contracted 30 | Actuals applied | Attrition charge per contract; invoice reflects 30 or 28 as the rule states |
+| EV-09 | Event completes | Profitability report | Revenue by component less supplier, labour from rota and food cost from EPOS; margin shown |
+| EV-10 | Staffing from sheet | Published | Shifts appear in the rota module for the right roles and times |
+
+### 14.13 Sheets and reporting
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| RPT-01 | Fire sheet at 23:00 | Printed and cached | Every in-house registered name present; staff on shift listed; matches in-house count |
+| RPT-02 | Breakfast sheet | Generated | Pax by meal plan and time slot equal in-house guests with breakfast plus event delegates |
+| RPT-03 | Manager's report | Audit | Occupancy, ADR, RevPAR and revenue reconcile to journal totals to the penny |
+| RPT-04 | Pickup report | Day after 5 bookings and 1 cancellation | Net 4 rooms shown by arrival month and channel |
+| RPT-05 | Scheduled report to 2 recipients at 07:00 | Scheduler | Delivered once, PDF and CSV, correct period |
+| RPT-06 | Custom report saved with filter | Shared with role | Visible to that role only; pinned tile on KPI dashboard refreshes |
+| RPT-07 | Deposit ledger at month end | Report | Liability equals sum of deposits held minus applied minus refunded |
+
+### 14.14 Admin, security and compliance
+
+| ID | Given | When | Then |
+|---|---|---|---|
+| ADM-01 | User with front desk role | Attempts to edit rate plan | Denied and logged |
+| ADM-02 | Refund above role threshold | Attempted | Requires approval from a role with sufficient limit |
+| ADM-03 | Any config change | Saved | Audit log entry with before and after, actor, time, IP |
+| ADM-04 | Erasure request for a guest | Processed | Profile anonymised; ledger and invoices retained with anonymised reference; confirmation stored |
+| ADM-05 | Retention 3 years for ID documents | Job runs | Documents older than 3 years purged; log kept |
+| ADM-06 | Tenant A user | Requests tenant B data by ID | Not found; attempt logged |
+| ADM-07 | Training mode property | Nightly reset | Sample data restored; no messages sent to real addresses |
+| ADM-08 | CSV import of 500 future reservations | Imported | Row-level validation report; successful rows create reservations and adjust availability; ARI pushed once at the end |
+| ADM-09 | Feature flag Yield off for property | User opens Yield | Not visible; API returns entitlement error |
+| ADM-10 | Backup restore drill | Quarterly | Restores to a point in time within the RPO; checklist signed |
+
+### 14.15 Non-functional
+
+| ID | Requirement | Acceptance |
+|---|---|---|
+| NFR-01 | Availability 99.9 percent monthly for booking engine, PMS and channel sync | Measured by external monitor |
+| NFR-02 | ARI push to acknowledgement under 60 seconds at p95 | Health dashboard |
+| NFR-03 | Inbound booking to reservation created under 5 seconds at p95 | Logs |
+| NFR-04 | Search under 300 ms at p95 for the reference dataset | Load test |
+| NFR-05 | Zero stored PANs | Code scan and PCI SAQ |
+| NFR-06 | All user-facing pages WCAG 2.2 AA | Automated scan plus manual check on booking engine and guest app |
+| NFR-07 | Housekeeping app usable offline for 8 hours | Field test |
+| NFR-08 | Data residency UK | Infrastructure review |
+| NFR-09 | Recovery point 15 minutes, recovery time 4 hours | Restore drill |
+| NFR-10 | Every automated price, task assignment and stop-sell has a stored human-readable reason | Code review and sample audit |

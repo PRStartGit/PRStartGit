@@ -1,0 +1,42 @@
+# CLAUDE.md — Zynthio Stay
+
+Copy this file to the root of the Zynthio repository as `CLAUDE.md` (or merge it into the existing one). Every Claude Code session in the repository reads it automatically.
+
+## What this repository is
+
+Zynthio is a UK hospitality operations platform (rotas, HR and compliance, EPOS, KPI dashboards, reputation, native staff app, Dojo payments, SendGrid email). Python backend, Angular front end. Zynthio Stay adds a hotel PMS, channel manager, revenue engine, events module and housekeeping app as modules inside this platform.
+
+## Start here
+
+Read `docs/ZYNTHIO-STAY-BUILD-SPEC.md` before any Stay work. Part 0 is the developer brief and build order. Part B sections 8 and 9 are the configuration contract, section 13 is the search algorithm, section 14 is the definition of done. Keep `docs/stay/00-stack-notes.md` and `docs/stay/decisions.md` up to date.
+
+## Stack and structure
+
+- Django and Django REST Framework for Stay: one Django app per bounded context under `stay/` (identity, inventory, reservations, folio, payments, channels, booking_engine, pricing, housekeeping, epos_bridge, guest_journey, messaging, events, reporting, admin, integrations).
+- Models with migrations, viewsets as controllers, serializers, DRF permission classes, Celery workers and beat for jobs. No raw SQL except in migrations and reporting views.
+- Angular feature modules in the existing front end, one per Stay module, lazy loaded.
+- Shared Postgres with Zynthio. Stay tables reference Zynthio organisation, site, user and employee rows by foreign key. Never create a second auth system or a second database.
+- Tests under `tests/stay/` named after acceptance test IDs (for example `test_fin_01_posting_writes_balanced_journal`).
+
+## Non-negotiable rules
+
+1. Money is append-only. Postings and payments write immutable double-entry journal lines. Corrections are reversing entries with a reason code. No update or delete on financial rows. Invoice and credit note numbers are sequential per property with no gaps.
+2. No card numbers stored, ever. Dojo tokens and gateway references only. OTA virtual cards encrypted with field-level keys and purged after capture.
+3. Every query is tenant-scoped by organisation and property. Cross-tenant access returns not found and is logged.
+4. Domain events drive side effects. Consumers are idempotent and replayable. No polling of tables.
+5. Every external push (ARI, messages, webhooks) goes through an outbox with idempotency keys, retry with backoff and a dead-letter queue.
+6. Configuration over code. Rates, policies, taxes, fees, templates, task rules and pricing rules are data edited in the admin console, versioned and audited. Reservations pin the policy versions they were sold under.
+7. Every automated price, task assignment, stop-sell and fee stores a plain-English reason.
+8. Tills and the housekeeping app work offline and reconcile with idempotency keys.
+9. Configuration and financial changes are audited with actor, before, after, time and IP.
+10. UK first: GBP, VAT including the 28-day rule, visitor levies, Immigration (Hotel Records) Order fields, tronc, Europe/London default.
+11. WCAG 2.2 AA and plain English (reading age 12) in every guest-facing screen and document.
+12. No scraping of Booking.com, Expedia, Google or any OTA. Competitor rates come from manual entry, extranet imports or a licensed feed.
+13. Secrets live in server configuration, never in the repository.
+
+## Working conventions
+
+- One bounded context per pull request where possible. Reference acceptance test IDs in commit messages.
+- A module is done when its section 14 tests pass in CI on the seeded reference property, its admin settings exist with validation and audit, its user guide is written under `docs/stay/guides/`, and its sheets and reports render and export.
+- Write a decision record in `docs/stay/decisions.md` whenever the spec is ambiguous. Flag anything that changes money, tenancy or security to Attila before merging.
+- Prefer the existing Zynthio patterns for auth, permissions, API shape, logging and front-end components over new ones.

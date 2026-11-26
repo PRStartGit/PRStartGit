@@ -570,3 +570,80 @@ How a price is formed for a given room type, rate plan, date and party.
 | Audit log | yes | yes | no | no | no | no | no | yes |
 
 Thresholds (refund limit, adjustment limit, discount limit) are per role and per property.
+
+### 8.15 Extra charges, fees and incidentals
+
+Every fee is a configurable **charge item** with a charge code behind it, so it posts, taxes, reports and refunds like any other revenue. Fees are either **automatic** (a trigger and a calculation decide when and how much) or **manual** (staff or the guest add it). Nothing is hard-coded.
+
+**Charge item definition**
+
+| Setting | Type | Default | Rule or behaviour |
+|---|---|---|---|
+| Code, name per language | text | required | Shown on folio, invoice and guest app |
+| Charge code | reference | required | Department, revenue category, tax rule and GL account come from it |
+| Pricing basis | enum (fixed, per hour, per night, per person, per person per night, percent of room rate, percent of folio, per unit, tiered, free) | fixed | Tiered uses bands (first hour 10, then 5 per hour) |
+| Amount or rate table | money or table | required | Can vary by room type, rate plan, season and day of week |
+| Max amount, min amount | money | none | Caps a per-hour fee at a night's rate, for example |
+| Tax treatment | inherit from charge code or override | inherit | Damage recharges may be outside the scope of VAT; configurable per item |
+| Trigger | enum (manual, early check-in, late check-out, no-show, late cancellation, extra guest, extra bed, cot, pet, parking, resort or facility fee, minibar, damage, lost key, smoking, excess cleaning, unreturned item, late payment, card surcharge where lawful, custom rule) | manual | Automatic triggers evaluated by the fee engine |
+| Trigger parameters | per trigger | see below | Thresholds, grace periods, rounding |
+| Availability check | boolean | false | Early check-in and late check-out only offer if the room is free and clean or the next arrival allows |
+| Approval required | none, supervisor, manager | none | Damage and discretionary fees usually need approval |
+| Evidence required | boolean, photo count | false | Damage requires photos and a note before posting |
+| Guest consent required | boolean | false | Posts only after the guest accepts in the guest app, at check-in or by signed terms |
+| Waivable | boolean, waiver reasons | true | Waiver is a reversing posting with a reason code; waivers are reported |
+| Refund rule | enum (refundable, non-refundable, pro rata) | refundable | Used by the refund engine |
+| Sellable as upsell | boolean, channels (booking engine, online check-in, guest app, desk) | false | Appears as an add-on with its own inventory cap where relevant |
+| Inventory cap | integer per date | none | Limits parking bays, cots, late check-outs per day |
+| Charge timing | at posting, at check-out, at night audit, N days after departure | at posting | Post-departure charges use card on file with the consent record |
+| Notify guest | boolean, template | true for post-departure | Email or SMS with itemised reason and photos where applicable |
+| Dispute window | days | 14 | Guest can dispute from the notification; posting is held or flagged per setting |
+| Active, display order | boolean, integer | true, end | |
+
+**Automatic fee triggers and their parameters**
+
+| Trigger | Parameters | Calculation |
+|---|---|---|
+| Early check-in | Earliest allowed time, grace minutes, free if room ready and occupancy below X percent, bands (before 10:00 fee A, 10:00 to 13:00 fee B) | Compares actual or requested check-in time to property check-in time |
+| Late check-out | Latest allowed time, grace minutes, bands by hour, cap at full night, free for loyalty tier or rate plan | Compares actual or requested departure to check-out time; automatic posting when the room is still occupied past grace unless pre-sold |
+| No-show | From the no-show policy on the rate plan | Night audit posts it; the reservation moves to no-show |
+| Late cancellation | From the cancellation policy | Refund engine computes and posts the penalty |
+| Extra guest over standard occupancy | Adult supplement, child supplement per bracket | Pricing matrix posts per night |
+| Extra bed, cot | Per night or per stay fee | Posted when added; creates housekeeping task |
+| Pet | Per night or per stay, max pets, deposit option | Posted at booking or check-in |
+| Parking | Per night, per stay, hourly; bay inventory | Upsell with cap |
+| Facility or resort fee | Per night or per stay, mandatory, disclosed on booking engine and channels where required | Auto-posted nightly |
+| Minibar and consumables | From housekeeping count | Posted per item at count |
+| Lost key or card | Fixed | Manual with one tap at desk |
+| Smoking in room, excess cleaning | Fixed or hourly, evidence required | Manual from housekeeping inspection with photos |
+| Unreturned item (robe, towel, charger) | Price per item from the linen or stock catalogue | Housekeeping flags missing items at departure inspection |
+| Late payment on city ledger | Percent per month or fixed, grace days | Finance posts to the company account |
+| Card surcharge | Only where lawful; UK consumer cards are prohibited, so default off | Finance control |
+| Custom rule | Condition builder (same engine as pricing rules) plus a charge item | Hoteliers can create fees without Zynthio |
+
+**Damages and incident charges**
+
+| Element | Behaviour |
+|---|---|
+| Incident record | Created from the housekeeping inspection, maintenance ticket or front desk: room, date, description, category (damage, missing item, excess cleaning, smoking, noise, breach of house rules), photos, staff witness, estimated cost |
+| Cost basis | Price list per category and item (replacement cost of a lamp, repaint per wall, professional clean), or a quote attached from maintenance, or actual invoice |
+| Approval | Manager approval required above a per-property threshold; approval is logged with the evidence |
+| Guest notification | Itemised notice with photos sent before or at posting per the charge timing setting, with the dispute window and the signed terms referenced |
+| Posting | Posts to the guest folio or a post-departure incidentals folio; charged to the card on file with the consent record attached |
+| Deposits | Optional damage deposit configurable per rate plan or guest segment: pre-authorise and release at check-out, or collect and refund |
+| Disputes and chargebacks | Dispute opens a ticket; evidence pack assembled from the incident record, registration card, house rules acceptance and check-in logs |
+| Insurance and recovery | Mark incident as claimed, record recovery amount, write-off remainder with reason |
+| Reporting | Incidents by category, room and month; recovery rate; average cost per incident; repeat rooms flag maintenance issues |
+
+**Where fees surface**
+
+| Surface | What the guest or staff see |
+|---|---|
+| Booking engine | Mandatory fees shown in the price breakdown before payment; optional add-ons as upsells with inventory |
+| Online check-in | Early check-in, late check-out, parking, breakfast and other upsells priced live against availability |
+| Guest app | Request late check-out, add parking, view fees already posted, dispute a charge |
+| Front desk | One-tap fee buttons configured per property, with amount preview, waiver and approval flow |
+| Housekeeping app | Flag damage, missing items, smoking or excess cleaning with photos; the fee engine prices it |
+| Night audit | Auto-posts no-shows, facility fees and unpaid late check-outs; lists fees awaiting approval |
+| Channels | Mandatory fees declared to OTAs that require fee disclosure; optional fees excluded from pushed rates |
+| Reports | Fee revenue by item, waiver rate and value by user, dispute rate, incident recovery |
